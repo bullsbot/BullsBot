@@ -22,4 +22,6 @@ Requirements
 * Python 2.7
 * `PRAW <https://praw.readthedocs.org/en/v2.1.16/>`_ (Read the Docs)
 * `VObject <https://pypi.python.org/pypi/vobject>`_ (PyPi)
+* `pytz <https://pypi.python.org/pypi/pytz/>`_ (PyPi)
+* `BeautifulSoup <http://www.crummy.com/software/BeautifulSoup/>`_ (BeautifulSoup)
 
