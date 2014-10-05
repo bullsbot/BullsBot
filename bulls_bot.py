@@ -13,10 +13,13 @@ import nba_game_scraper
 class game_thread_links(object):
     """ Object containing links to game thread links
     """
-    def __init__(self, pre=None, game=None, post=None):
-        self.pre = pre
-        self.game = game
-        self.post = post
+    def __init__(self, pre=None, pre_id=None, game=None, game_id=None, post=None, post_id=None):
+        self.pre = pre              # link to pregame thread
+        self.pre_id = pre_id        # reddit id of pregame thread
+        self.game = game            # link to game thread
+        self.game_id = game_id      # reddit id of game thread
+        self.post = post            # link to postgame thread
+        self.post_id = post_id      # reddit id of postgame thread
 
 
 class bulls_bot(object):
@@ -41,14 +44,13 @@ class bulls_bot(object):
         else:
             self.subreddit = subreddit
 
-        # todo: test loggin to authenticate
         self.reddit = None
         self.userAgent = 'NBA_Sub_Bot/v0.0.1 by ' + self.username
         # calendar link(s)
         self.calendarURL = raw_input('Calendar URL (leave empty to use default): ')
         if self.calendarURL is None or self.calendarURL.strip() == '':
             print 'using default calendar url'
-            self.calendarURL = "https://www.google.com/calendar/ical/gaoqslg3k9q9ca72to0rod6j44%40group.calendar.google.com/private-8b67353a6e41dcfe000cd2c9830a8fa9/basic.ics"
+            self.calendarURL = "https://www.google.com/calendar/ical/chicagobullsbot%40gmail.com/private-48b0043bc03da315706a2ca595c0e63b/basic.ics"
         self.no_date_flag = "#NODATE"
         # team data
         self.teamName = "Chicago Bulls"
@@ -75,13 +77,18 @@ class bulls_bot(object):
         self.current_game_fmt = "[{game_status}](#STATUS) [{away_team_short}](#TEAM) [{away_score}](#SCORE) [{home_team_short}](#TEAM2) [{home_score}](#SCORE2) [{month_day}](#DATE)\n"
         self.future_game_fmt =  "[{game_time_local}](#STATUS) [{away_team_short}](#TEAM) [](#SCORE) [{home_team_short}](#TEAM2) [](#SCORE2) [{month_day}](#DATE)\n"
         self.game_thread_link_fmt = "[GAME_THREAD]({link})"
-        self.event_markdown_pre = " - " # goes before each game/event
-        self.event_markdown_post = "" # goes after each game/event
+        self.event_markdown_pre = " - "  # goes before each game/event
+        self.event_markdown_post = ""    # goes after each game/event
         # markdownfmt = "- [](http://www.reddit.com/r/albator/comments/20dhx1/game_thread_chicago_bulls_00_vs_san_antonio_spurs/) [FINAL](#STATUS) [**CHI**](#TEAM) [**99**](#SCORE) [SAS](#TEAM2) [96](#SCORE2) [MARCH 13](#DATE)"
-        # self.pre_game_thread_fmt = "##### EXAMPLE\nHOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}—{away_score}** *VERSUS* *[BOX SCORE]({game_link})*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n## INFO\n[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* |[](#empty)\n[](#empty)|*STREAMS* |[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)\n"
-        self.current_game_thread_fmt = "##### \nHOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}—{away_score}** *VERSUS* *[BOX SCORE]({game_link})*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n## INFO\n[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* |[](#empty)\n[](#empty)|*STREAMS* |[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)\n"
+        self.current_game_thread_fmt = "##### \nHOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *VERSUS* *[BOX SCORE]({game_link})*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n"
+        self.current_game_thread_split_text = "## INFO"
+        self.current_game_thread_post_text = "## INFO\n[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* |[](#empty)\n[](#empty)|*STREAMS* |[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)\n"
         self.game_thread_title_fmt = "GAME THREAD: {home_team_name} ({home_team_win_loss}) vs. {away_team_name} ({away_team_win_loss}) ({month_day_year})"
         self.game_thread_title_date_fmt = "%b %d, %Y"
+        # check that the username and password work, if not die now!
+        if not self.authenticate_reddit():
+            print "Could not login to reddit with " + self.username
+            raise praw.errors.LoginRequired("bulls_bot")
 
     def authenticate_reddit(self):
         """
@@ -98,11 +105,10 @@ class bulls_bot(object):
                 #Log in to Reddit
                 self.reddit.login(self.username, self.password)
 
-                authenticated = True
+            authenticated = True
         except:
             authenticated = False
         return authenticated
-
 
     def get_cal(self):
         # get calendar from url
@@ -212,6 +218,8 @@ class bulls_bot(object):
 
     # make schedule for a date range and max number of events
     def schedule_maker(self, startDate=datetime(2013, 1, 1), endDate=datetime(2025, 1, 1), max_events=100):
+        if startDate is None:
+            startDate = datetime(2013, 1, 1)
 
         # load game schedule
         cal = self.get_cal()
@@ -404,7 +412,7 @@ class bulls_bot(object):
 
     def generate_default_schedule(self):
         print "generating default schedule"
-        self.max_events_to_display = 160
+        self.max_events_to_display = 16
         self.prior_events_to_display = 3
         self.min_events_to_display = 10
         begin_date = None
@@ -462,6 +470,8 @@ class bulls_bot(object):
             responses = ["Thibs would be proud of this hustle! Updated that schedy sched for u at around ", "Schedy sched updated ", "1000010010101000101001 at ", "Ok, just updated at ", "What it is, just updated at ", "Boom, did it at ", "Puttin in work sukka! Just updated that schedule at ", "Yoooooooooo.... did it again at ", "Knock knock. (Who's there?) BULLS BOT PUTTIN IN WORK! ... at ", " Yaawwn, got anything else for me to do? ... just updated again at ", "Guess what I just did at ", "Beep Boop Bop Beep Booop at "]
             response = responses[randrange(len(responses))]
             print '[In /r/' + self.subreddit + '] ' + response + formated_time
+        else:
+            print "could not authenticate through reddit"
 
     def add_game_thread_links(self, gtl):
         """
@@ -512,20 +522,32 @@ class bulls_bot(object):
         """
         checks for the existence of a game thread submission, if found, updates the text, otherwise submits new one
         """
+        success = False
         if self.authenticate_reddit():
-            # submit new game thread
-            game_thread_submission = self.reddit.get_subreddit(self.subreddit).submit(
-                text=game_thread_markup,
-                title=game_thread_title
-            )
-            return game_thread_submission.permalink
-        print "Someone should implement post_new_game_thread"
+            gamethreads = self.get_game_thread_links_for_date(datetime.now())
+            if gamethreads is not None and gamethreads.game is not None:
+                # update thread
+                game_thread_submission = self.reddit.get_submission(url=gamethreads.game)
+                current_game_thread_post_text = \
+                    game_thread_submission.selftext.split(self.current_game_thread_split_text)[1]
+                game_thread_submission.edit(
+                    game_thread_markup + current_game_thread_post_text
+                )
+                success = True
+            else:
+                # submit new game thread
+                game_thread_submission = self.reddit.get_subreddit(self.subreddit).submit(
+                    text=game_thread_markup + self.current_game_thread_post_text,
+                    title=game_thread_title
+                )
+                success = True
+        return success
 
-    # todo: how do we keep game thread links associated with schedules?
     def generate_or_update_game_thread_if_necessary(self):
         game_is_live = self.is_the_game_on_now()
             # get pregame thread template
-        if self.need_to_create_game_thread():
+        if self.need_to_create_game_thread() or \
+                (self.get_game_thread_links_for_date(datetime.now()) is not None and game_is_live):
             # get the game thread template
             # get game_day data
             local_game_time = self.game_day_info["local_game_time"]
@@ -571,16 +593,9 @@ class bulls_bot(object):
                 away_team_name=self.team_dict[game_data['away_team'].upper()]['long_name'],
                 month_day_year=local_game_time.strftime(self.game_thread_title_date_fmt)
             )
-            # post on sub and get url
+            # submit new or update
             game_thread_url = self.post_new_or_update_game_thread(game_thread_markup, game_thread_title)
-            # create new game_thread_link
-            game_thread_link = game_thread_links(game=game_thread_url)
-            self.add_game_thread_links(game_thread_link)
 
-        # else, if a game thread for today exists and the game is on, we need to update it
-        elif self.get_game_thread_links_for_date(datetime.now()) is not None and game_is_live:
-            # find the current thread and parse it
-            print "Someone should implement updating a game thread"
         elif self.need_to_create_pregame_thread():
             # create pregame thread
             print "Someone should implement creating a pregame thread"
