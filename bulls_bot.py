@@ -540,6 +540,7 @@ class bulls_bot(object):
                     text=game_thread_markup + self.current_game_thread_post_text,
                     title=game_thread_title
                 )
+                game_thread_submission.sticky()
                 success = True
         return success
 
