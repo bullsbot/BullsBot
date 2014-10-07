@@ -76,15 +76,20 @@ class bulls_bot(object):
         self.past_game_fmt =    "[{game_status}](#STATUS) [{away_team_short}](#TEAM) [{away_score}](#SCORE) [{home_team_short}](#TEAM2) [{home_score}](#SCORE2) [{month_day}](#DATE)\n"
         self.current_game_fmt = "[{game_status}](#STATUS) [{away_team_short}](#TEAM) [{away_score}](#SCORE) [{home_team_short}](#TEAM2) [{home_score}](#SCORE2) [{month_day}](#DATE)\n"
         self.future_game_fmt =  "[{game_time_local}](#STATUS) [{away_team_short}](#TEAM) [](#SCORE) [{home_team_short}](#TEAM2) [](#SCORE2) [{month_day}](#DATE)\n"
-        self.game_thread_link_fmt = "[GAME_THREAD]({link})"
+        self.game_thread_link_fmt = "[]({link})"
         self.event_markdown_pre = " - "  # goes before each game/event
         self.event_markdown_post = ""    # goes after each game/event
         # markdownfmt = "- [](http://www.reddit.com/r/albator/comments/20dhx1/game_thread_chicago_bulls_00_vs_san_antonio_spurs/) [FINAL](#STATUS) [**CHI**](#TEAM) [**99**](#SCORE) [SAS](#TEAM2) [96](#SCORE2) [MARCH 13](#DATE)"
-        self.current_game_thread_fmt = "##### \nHOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *VERSUS* *[BOX SCORE]({game_link})*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n"
-        self.current_game_thread_split_text = "## INFO"
-        self.current_game_thread_post_text = "## INFO\n[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* |[](#empty)\n[](#empty)|*STREAMS* |[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)\n"
+        self.current_game_thread_fmt = "HOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *VERSUS* *[BOX SCORE](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html#nbaGIboxscore)*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n\n"
+        # self.current_game_thread_fmt = "##### \nHOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *VERSUS* *BOX SCORE*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n"
+        # self.current_game_thread_fmt = "##### \nHOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *VERSUS* *[BOX SCORE]({game_link})*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n"
+        self.current_game_thread_split_text = "[](#empty)|INFORMATION"
+        self.current_game_thread_post_text = "[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* |[](#empty)\n[](#empty)|*STREAMS* |[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)|[](#empty)\n"
         self.game_thread_title_fmt = "GAME THREAD: {home_team_name} ({home_team_win_loss}) vs. {away_team_name} ({away_team_win_loss}) ({month_day_year})"
         self.game_thread_title_date_fmt = "%b %d, %Y"
+        self.game_thread_flair = 'gamethread'
+        self.pregame_thread_flair = 'pregame'
+        self.postgame_thread_flair = 'postgame'
         # check that the username and password work, if not die now!
         if not self.authenticate_reddit():
             print "Could not login to reddit with " + self.username
@@ -119,10 +124,17 @@ class bulls_bot(object):
     def load_teams(self):
         # load team info
         self.team_dict = {}
+        self.team_dict_short_key = {}
         with open(self.teamInfoFilePath, "r") as teamInfoFile:
             for teamInfoRow in teamInfoFile.read().split("\n"):
                 teamInfo = teamInfoRow.split(',')
                 self.team_dict[teamInfo[0]] = {
+                    'long_name': teamInfo[0],
+                    'short_name': teamInfo[1].upper(),
+                    'sub': teamInfo[2],
+                    'timezone': teamInfo[3]
+                }
+                self.team_dict_short_key[teamInfo[1].upper()] = {
                     'long_name': teamInfo[0],
                     'short_name': teamInfo[1].upper(),
                     'sub': teamInfo[2],
@@ -174,7 +186,7 @@ class bulls_bot(object):
             if -30 < minutes_till_tipoff <= 0:
                 is_game_live = True
             else:
-                games = nba_game_scraper.get_games(current_local_datetime, 5)   # five second cache
+                games = nba_game_scraper.get_games(current_local_datetime, 30)   # thirty second cache
                 live_game_on = False
                 # key is like CHI_SAS, value is a dict with game data
                 for key, value in games.iteritems():
@@ -257,7 +269,7 @@ class bulls_bot(object):
                     if game_as_formatted_schedule_str != '':
                         schedule_as_string += \
                             self.event_markdown_pre + \
-                            self.get_game_thread_link_as_formatted_string(local_start_date) + \
+                            self.get_game_thread_link_as_formatted_string(localGameTime) + \
                             game_as_formatted_schedule_str + \
                             self.event_markdown_post
                         events_added_to_schedule += 1
@@ -333,14 +345,21 @@ class bulls_bot(object):
         home_team_short = self.team_dict[home_team]['short_name']
         # get real scores
         # scores = get_scores(chiDateTime)
-        games_data = nba_game_scraper.get_games(chiDateTime)
-        try:
-            game_data = games_data[away_team_short + '_' + home_team_short]
-        except KeyError:
-            # this happens when we have a game in the game calendar but nba.com doesn't have it listed
-            # todo: log error or warn
-            print 'WARNING: could not find game data for ' + away_team_short + '_' + home_team_short + ' on ' + month_day
-            return ''
+        if chiDateTime.date() <= datetime.now(timezone).date():
+            # if the game is today or has passed, get the game info
+            games_data = nba_game_scraper.get_games(chiDateTime)
+            try:
+                game_data = games_data[away_team_short + '_' + home_team_short]
+            except KeyError:
+                # this happens when we have a game in the game calendar but nba.com doesn't have it listed
+                # todo: log error or warn
+                print 'WARNING: could not find game data for ' + away_team_short + '_' + home_team_short + ' on ' + month_day
+                return ''
+        else:
+            # otherwise, skip scrapping the game info
+            game_data = {
+                'current_status': 'PRE'
+            }
 
         has_scores = True
         try:
@@ -394,10 +413,12 @@ class bulls_bot(object):
     def get_current_update_freq(self):
         current_update_freq = self.non_game_day_upate_freq
         if self.is_today_a_game_day():
+            todays_game_thread_links = self.get_game_thread_links_for_date(datetime.now())
             if self.is_the_game_on_now():
                 # if the game is on now, update at the game time update frequency
                 current_update_freq = self.game_time_upate_freq
-            elif not 'game_thread_link' in self.game_day_info:
+            # todo: add 'pre' and 'post' game threads
+            elif todays_game_thread_links is None or todays_game_thread_links.game is None:
                 # if there's no game thread, update when the game thread is supposed to get created
                 current_update_freq = self.get_seconds_till_game() - self.game_thread_create_time
             else:
@@ -529,6 +550,7 @@ class bulls_bot(object):
                 # update thread
                 game_thread_submission = self.reddit.get_submission(url=gamethreads.game)
                 current_game_thread_post_text = \
+                    self.current_game_thread_split_text +\
                     game_thread_submission.selftext.split(self.current_game_thread_split_text)[1]
                 game_thread_submission.edit(
                     game_thread_markup + current_game_thread_post_text
@@ -540,7 +562,13 @@ class bulls_bot(object):
                     text=game_thread_markup + self.current_game_thread_post_text,
                     title=game_thread_title
                 )
+                self.add_game_thread_links(game_thread_links(game=game_thread_submission.permalink))
                 game_thread_submission.sticky()
+                game_thread_submission.set_flair(flair_text=self.game_thread_flair,
+                                                 flair_css_class=self.game_thread_flair)
+
+                # todo: should add link to currnt gamethreadlinks not replace all
+
                 success = True
         return success
 
@@ -552,7 +580,7 @@ class bulls_bot(object):
             # get the game thread template
             # get game_day data
             local_game_time = self.game_day_info["local_game_time"]
-            games = nba_game_scraper.get_games(local_game_time, 5)   # five second cache
+            games = nba_game_scraper.get_games(local_game_time, 30)   # thirty second cache
             game_data = None
             # find the game our home-team is in
             for key, value in games.iteritems():
@@ -560,42 +588,50 @@ class bulls_bot(object):
                     game_data = value
 
             # local times
-            game_time_eastern = local_game_time.astimezone(pytz.timezone('US/Eastern'))
-            game_time_central = local_game_time.astimezone(pytz.timezone('US/Central'))
-            game_time_mountain = local_game_time.astimezone(pytz.timezone('US/Mountain'))
-            game_time_pacific = local_game_time.astimezone(pytz.timezone('US/Pacific'))
+            local_time_format = "%I:%M %p"
+            link_date_format = "%Y%m%d"
+            link_date = local_game_time.strftime(link_date_format)
+            game_time_eastern = local_game_time.astimezone(pytz.timezone('US/Eastern')).strftime(local_time_format)
+            game_time_central = local_game_time.astimezone(pytz.timezone('US/Central')).strftime(local_time_format)
+            game_time_mountain = local_game_time.astimezone(pytz.timezone('US/Mountain')).strftime(local_time_format)
+            game_time_pacific = local_game_time.astimezone(pytz.timezone('US/Pacific')).strftime(local_time_format)
 
             #scores
             home_score = 0
             away_score = 0
-            if 'home_score' in game_data:
+            if 'home_score' in game_data and game_data['home_score'] is not None:
                 home_score = game_data['home_score']
-            if 'away_score' in game_data:
+            if 'away_score' in game_data and game_data['away_score'] is not None:
                 away_score = game_data['away_score']
 
             # format the template with game data
             game_thread_markup = self.current_game_thread_fmt.format(
                 home_team_short=game_data['home_team'].upper(),
-                home_team_name=self.team_dict[game_data['home_team'].upper()]['long_name'],
-                home_subreddit=self.team_dict[game_data['home_team'].upper()]['sub'],
+                home_team_name=self.team_dict_short_key[game_data['home_team'].upper()]['long_name'],
+                home_subreddit=self.team_dict_short_key[game_data['home_team'].upper()]['sub'],
                 home_score=home_score,
+                home_team_win_loss='0-0',
                 away_team_short=game_data['away_team'].upper(),
-                away_team_name=self.team_dict[game_data['away_team'].upper()]['long_name'],
-                away_subreddit=self.team_dict[game_data['away_team'].upper()]['sub'],
+                away_team_name=self.team_dict_short_key[game_data['away_team'].upper()]['long_name'],
+                away_subreddit=self.team_dict_short_key[game_data['away_team'].upper()]['sub'],
                 away_score=away_score,
+                away_team_win_loss='0-0',
                 game_time_eastern=game_time_eastern,
                 game_time_central=game_time_central,
                 game_time_mountain=game_time_mountain,
                 game_time_pacific=game_time_pacific,
+                link_date=link_date
             )
             # format the title with game data
             game_thread_title = self.game_thread_title_fmt.format(
-                home_team_name=self.team_dict[game_data['home_team'].upper()]['long_name'],
-                away_team_name=self.team_dict[game_data['away_team'].upper()]['long_name'],
+                home_team_name=self.team_dict_short_key[game_data['home_team'].upper()]['long_name'],
+                home_team_win_loss='0-0',
+                away_team_name=self.team_dict_short_key[game_data['away_team'].upper()]['long_name'],
+                away_team_win_loss='0-0',
                 month_day_year=local_game_time.strftime(self.game_thread_title_date_fmt)
             )
             # submit new or update
-            game_thread_url = self.post_new_or_update_game_thread(game_thread_markup, game_thread_title)
+            success = self.post_new_or_update_game_thread(game_thread_markup, game_thread_title)
 
         elif self.need_to_create_pregame_thread():
             # create pregame thread
