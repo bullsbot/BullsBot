@@ -2,6 +2,7 @@ __version__ = '0.0.1'
 
 from datetime import datetime
 import time
+import getpass
 import vobject
 import pytz
 import urllib2
@@ -34,7 +35,7 @@ class bulls_bot(object):
             self.username = username
         # password
         if password is None:
-            self.password = raw_input('Reddit Password: ')
+            self.password = getpass.getpass('Reddit Password: ')
         else:
             self.password = password
         # sub
@@ -342,7 +343,7 @@ class bulls_bot(object):
         chiDateTime = game.dtstart.value.astimezone(timezone)
             # print game.summary.valueRepr()
         month_day = chiDateTime.strftime(date_format).upper().replace(" 0", " ")
-        game_time_local = chiDateTime.strftime(time_format)
+        game_time_local = chiDateTime.strftime(time_format).lstrip("0")
         # Get Summary
         print 'Summary: ', game.summary.valueRepr()
         print 'Location: ', game.location.valueRepr()
