@@ -27,7 +27,7 @@ class bulls_bot(object):
     """ Reddit bot that handles updating the sidebar and game-threads periodically
     """
 
-    def __init__(self, username=None, password=None, subreddit=None):
+    def __init__(self, username=None, password=None, subreddit=None, team_name=None):
         # username
         if username is None:
             self.username = raw_input('Reddit Username: ')
@@ -43,17 +43,27 @@ class bulls_bot(object):
             self.subreddit = raw_input('Subreddit (e.g. chicagobulls, not /r/chicagobulls): ')
         else:
             self.subreddit = subreddit
-
+        # bot
         self.reddit = None
-        self.userAgent = 'NBA_Sub_Bot/v0.0.1 by ' + self.username
+        self.userAgent = 'BullsBot/v0.0.1 by ' + self.username
+
         # calendar link(s)
+        self.calendar_no_date_flag = "#NODATE"
         self.calendarURL = raw_input('Calendar URL (leave empty to use default): ')
         if self.calendarURL is None or self.calendarURL.strip() == '':
             print 'using default calendar url'
+            # bulls
             self.calendarURL = "https://www.google.com/calendar/ical/chicagobullsbot%40gmail.com/private-48b0043bc03da315706a2ca595c0e63b/basic.ics"
-        self.no_date_flag = "#NODATE"
+            # bucks
+            # self.calendarURL = "https://www.google.com/calendar/ical/017inmrbgdrss70gjir461mnno%40group.calendar.google.com/private-ee501ceb1a29a9ab3a52d64418e63963/basic.ics"
+
+        # team
+        if team_name is None:
+            self.teamName = "Chicago Bulls"
+            # self.teamName = "Milwaukee Bucks"
+        else:
+            self.teamName = team_name
         # team data
-        self.teamName = "Chicago Bulls"
         self.teamInfoFilePath = "data/teams.csv"
         # load team data
         self.load_teams()
@@ -180,26 +190,41 @@ class bulls_bot(object):
         # todo return actual secs till game even if it's not a game-day
         return 10000000000
 
+    def is_game_over(self):
+        return self.game_day_info is not None \
+            and 'current_status' in self.game_day_info \
+            and self.game_day_info['current_status'] == 'FINAL'
+
     def is_the_game_on_now(self):
         local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
         current_local_datetime = datetime.now(local_timezone)
         is_game_live = False
         if self.is_today_a_game_day():
             minutes_till_tipoff = (self.game_day_info['local_game_time'] - current_local_datetime).total_seconds() / 60
-            # if we're checking in the first half hour or so, assume it's on
-            if -30 < minutes_till_tipoff <= 0:
+            # if it's before tipoff, assume it's not on yet
+            if minutes_till_tipoff > 5:
+                is_game_live = False
+                self.game_day_info['current_status'] = 'PRE'
+            # if we're checking in the first hour and a half or so, assume it's on
+            elif -90 < minutes_till_tipoff <= 5:
                 is_game_live = True
+                self.game_day_info['current_status'] = 'LIVE'
             else:
                 games = nba_game_scraper.get_games(current_local_datetime, 30)   # thirty second cache
                 live_game_on = False
+                game_found = False
                 # key is like CHI_SAS, value is a dict with game data
                 for key, value in games.iteritems():
-                    if key.find(self.team_dict[self.teamName]['short_name']) is not -1 and value['current_status'] == 'LIVE':
-                        live_game_on = True
+                    if key.find(self.team_dict[self.teamName]['short_name']) is not -1:
+                        game_found = True
+                        self.game_day_info['current_status'] = value['current_status']
+                        if value['current_status'] == 'LIVE' or value['current_status'] == 'LIVEOT':
+                            is_game_live = True
                         break
-                if live_game_on:
+                # if the scraper couldn't find the game (a possibility with nba.com)
+                # and the last status wasn't FINAL, assume it's still on
+                if not game_found and self.game_day_info['current_status'] != 'FINAL':
                     is_game_live = True
-
         return is_game_live
 
     def is_it_near_game_time(self):
@@ -266,9 +291,10 @@ class bulls_bot(object):
         schedule_as_string = ''
         for event in events:
             if type(event.dtstart.value) is datetime:
+                # add timezone if it's already a datetime
                 localGameTime = event.dtstart.value.astimezone(local_timezone)
             else:
-                # create new datetime with the date and give it the local timezone
+                # otherwise, it's a date so create new datetime with the date and give it the local timezone
                 # (if we were to use the calendars timezone and then convert it to local time, we could potentially change the date)
                 localGameTime = datetime(event.dtstart.value.year, event.dtstart.value.month, event.dtstart.value.day, tzinfo=local_timezone)
             if local_start_date < localGameTime < local_end_date:
@@ -283,7 +309,7 @@ class bulls_bot(object):
                             self.event_markdown_post
                         events_added_to_schedule += 1
                 else:
-                    # get nba event formatted to proper markdown
+                    # get event formatted to proper markdown
                     event_as_formatted_schedule_str = self.format_event(event, local_timezone)
                     if event_as_formatted_schedule_str != '':
                         schedule_as_string += \
@@ -324,14 +350,14 @@ class bulls_bot(object):
             # if they are in two different months
             else:
                 month_day = local_date_time.strftime(short_date_format) + '-' + local_end_date_time.strftime(short_date_format)
-        title_and_hashtag = summary.replace(self.no_date_flag, '').split(' #')
+        title_and_hashtag = summary.replace(self.calendar_no_date_flag, '').split(' #')
         title = title_and_hashtag[0].strip()
         try:
             hashtag = "#" + title_and_hashtag[1].strip()
         except IndexError:
             hashtag = "#"
 
-        if summary.find(self.no_date_flag) is not -1:
+        if summary.find(self.calendar_no_date_flag) is not -1:
             month_day = '-'
 
         return self.event_fmt.format(event_title=title, event_hashtag=hashtag, month_day=month_day)
@@ -361,9 +387,18 @@ class bulls_bot(object):
                 game_data = games_data[away_team_short + '_' + home_team_short]
             except KeyError:
                 # this happens when we have a game in the game calendar but nba.com doesn't have it listed
-                # todo: log error or warn
-                print 'WARNING: could not find game data for ' + away_team_short + '_' + home_team_short + ' on ' + month_day
-                return ''
+                # todo: log error
+                print 'ERROR: could not find game data for ' + away_team_short + '_' + home_team_short + ' on ' + month_day
+                raise
+            # if game start time has passed and we're in the middle of the game
+            #  and the game is not listed as live or final or postponed, raise error
+            if chiDateTime < datetime.now(timezone) \
+                and (self.game_day_info['current_status'] == 'LIVE' or self.game_day_info['current_status'] == 'LIVEOT') \
+                and not (game_data['current_status'] == "LIVE" or game_data['current_status'] == "LIVEOT"
+                         or game_data['current_status'] == "RECAP" or game_data['current_status'] == "RECAPOT"
+                         or game_data['current_status'] == "PPD"):
+                raise AssertionError('no LIVE, LIVEOT, RECAP, RECAPOT or PPD status on game with start time in past')
+
         else:
             # otherwise, skip scrapping the game info
             game_data = {
@@ -381,10 +416,8 @@ class bulls_bot(object):
             has_scores = False
         except TypeError:
             has_scores = False
-        # todo: find a better place for this
-        self.last_game_status = game_data['current_status']
-        if has_scores and (game_data['current_status'] == "RECAP" or game_data['current_status'] == "RECAPOT"):
 
+        if has_scores and (game_data['current_status'] == "RECAP" or game_data['current_status'] == "RECAPOT"):
             return self.past_game_fmt.format(game_status=game_data['game_status'].upper(),
                                              game_time_local=game_time_local,
                                              home_team_short=home_format.format(home_team_short),
@@ -400,7 +433,7 @@ class bulls_bot(object):
                                              home_score="",
                                              away_score="",
                                              month_day=month_day)
-        elif has_scores and game_data['current_status'] == "LIVE":
+        elif has_scores and (game_data['current_status'] == "LIVE" or game_data['current_status'] == "LIVEOT") :
             return self.current_game_fmt.format(game_status=game_data['game_status'].upper(),
                                                 game_time_local=game_time_local,
                                                 home_team_short=home_format.format(home_team_short),
@@ -628,12 +661,12 @@ class bulls_bot(object):
                 home_team_name=self.team_dict_short_key[game_data['home_team'].upper()]['long_name'],
                 home_subreddit=self.team_dict_short_key[game_data['home_team'].upper()]['sub'],
                 home_score=home_score,
-                home_team_win_loss='0-0',
+                home_team_win_loss='',
                 away_team_short=game_data['away_team'].upper(),
                 away_team_name=self.team_dict_short_key[game_data['away_team'].upper()]['long_name'],
                 away_subreddit=self.team_dict_short_key[game_data['away_team'].upper()]['sub'],
                 away_score=away_score,
-                away_team_win_loss='0-0',
+                away_team_win_loss='',
                 game_time_eastern=game_time_eastern,
                 game_time_central=game_time_central,
                 game_time_mountain=game_time_mountain,
@@ -643,9 +676,9 @@ class bulls_bot(object):
             # format the title with game data
             game_thread_title = self.game_thread_title_fmt.format(
                 home_team_name=self.team_dict_short_key[game_data['home_team'].upper()]['long_name'],
-                home_team_win_loss='0-0',
+                home_team_win_loss='',
                 away_team_name=self.team_dict_short_key[game_data['away_team'].upper()]['long_name'],
-                away_team_win_loss='0-0',
+                away_team_win_loss='',
                 month_day_year=local_game_time.strftime(self.game_thread_title_date_fmt)
             )
             # submit new or update
@@ -675,7 +708,7 @@ def schedule_schedule_updates():
             print e
             print "an error occurred during schedule creation " + str(consecutive_error_count) + " consecutive errors"
             update_freq = 60    # try again in one minutes
-            if consecutive_error_count > 2:
+            if consecutive_error_count > 5:
                 print "too many consecutive errors. exiting."
                 run_updates = False
                 update_freq = 0

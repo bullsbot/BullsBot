@@ -65,7 +65,7 @@ def parse_nba_games_html(games_html):
             # find game status
             status = game_container['class'][0].strip().upper()
             game['current_status'] = game_container['class'][0].strip().upper()
-            if status == "LIVE":
+            if status == "LIVE" or status == "LIVEOT":
                 # show quarter and time if live
                 game['game_status'] = soup.select('#'+container_id + ' div[class$="Status"] [class="nbaLiveStatTxSm"]')[0].string.upper().replace('"', '')
             elif status == "PRE":
