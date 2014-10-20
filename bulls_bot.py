@@ -76,7 +76,7 @@ class bulls_bot(object):
         self.game_time_upate_freq = 60 * 1.5           # every 1.5 minutes once the game has started
         self.game_thread_create_time = 60 * 60         # how many seconds before tip-off should game threads be created
         # schedule template
-        self.max_events_to_display = 16
+        self.max_events_to_display = 14
         self.prior_events_to_display = 4
         self.min_events_to_display = 10
         self.sidebar_schedule_start_string = "* **Schedule**"
