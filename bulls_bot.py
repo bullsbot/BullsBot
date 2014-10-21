@@ -558,26 +558,22 @@ class bulls_bot(object):
         key = gameDate.strftime(key_date_format)
         self.game_thread_links[key] = gtl
 
-    def findGameThreadsByDate(self, subreddit, date):
+    def findGameThreadsByDate(self, subreddit, game_thread_flairs, date, local_timezone):
         query = "("
-        for flair in self.game_thread_flairs.values():
+        for flair in game_thread_flairs.values():
             if query == "(":
                 query += "flair:'" + flair + "'"
             else:
                 query += " OR flair:'" + flair + "'"
         query += ")"
-        print query
         posts = subreddit.search(query=query, sort='new', period='all', limit='30')
         gtl = GameThreadLinks()
         found = False
-        local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
-        print 'query complete.'
-        # print len(posts)
         for post in posts:
             if datetime.fromtimestamp(post.created_utc, local_timezone).date() == date:
                 # if right date
                 game_pre_post = None
-                for key, flair in self.game_thread_flairs.items():
+                for key, flair in game_thread_flairs.items():
                     if flair == post.link_flair_css_class:
                         game_pre_post = key
                 if game_pre_post is not None:
@@ -597,7 +593,11 @@ class bulls_bot(object):
             gtl = None
         return gtl
 
-    def get_game_thread_links_for_date(self, date):
+    def get_game_thread_links_for_date(self, date, game_pre_post=None):
+        if game_pre_post is None:
+            game_pre_post = ['game', 'pre', 'post']
+        elif not isinstance(game_pre_post, list):
+            game_pre_post = [game_pre_post]
         local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
         date = date.astimezone(local_timezone)
         key_date_format = "%Y%m%d"
@@ -605,15 +605,26 @@ class bulls_bot(object):
         game_thread = None
         if key in self.game_thread_links:
             game_thread = self.game_thread_links[key]
-        # if any are none, search sub
+        # if any of the game threads requested are none, search sub
+        missing_game_thread_flairs = {}
+        for key in game_pre_post:
+            if game_thread is None or getattr(game_thread, key) is None:
+                missing_game_thread_flairs[key] = self.game_thread_flairs[key]
+
         if date.date() <= datetime.now(local_timezone).date() \
-            and (game_thread is None or game_thread.game is None or game_thread.pre is None or game_thread.post is None) \
+            and len(missing_game_thread_flairs) > 0 \
                 and self.authenticate_reddit():
             # couldn't find link, let's find them
-            game_thread = self.findGameThreadsByDate(self.reddit.get_subreddit(self.subreddit), date.date())
-            if game_thread is not None:
-                # save
-                self.add_game_thread_links(game_thread, gameDate=date)
+            tmp_game_thread = self.findGameThreadsByDate(self.reddit.get_subreddit(self.subreddit),
+                                                     missing_game_thread_flairs, date.date(), local_timezone)
+            # set missing game threads
+            if game_thread is None:
+                game_thread = tmp_game_thread
+            else:
+                for key in missing_game_thread_flairs.keys():
+                    setattr(game_thread, key, getattr(tmp_game_thread, key))
+            # save game thread
+            self.add_game_thread_links(game_thread, gameDate=date)
         return game_thread
 
     def get_game_thread_link_as_formatted_string(self, date):
@@ -621,7 +632,7 @@ class bulls_bot(object):
         returns an empty string or, if it exists, a game thread url formated as defined in game_thread_link_fmt
         """
         formatted_string = ''
-        game_thread_links = self.get_game_thread_links_for_date(date)
+        game_thread_links = self.get_game_thread_links_for_date(date, game_pre_post='game')
         if game_thread_links is not None and game_thread_links.game is not None:
             formatted_string = self.game_thread_link_fmt.format(link=game_thread_links.game)
         return formatted_string
@@ -631,7 +642,7 @@ class bulls_bot(object):
         returns true if it's a game-day and there is no game_thread.pre link.
         """
         local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
-        game_thread_links = self.get_game_thread_links_for_date(datetime.now(local_timezone))
+        game_thread_links = self.get_game_thread_links_for_date(datetime.now(local_timezone), game_pre_post='post')
         return self.is_today_a_game_day() and self.is_game_over() \
             and (game_thread_links is None
                  or (game_thread_links is not None and game_thread_links.post is None))
@@ -641,7 +652,7 @@ class bulls_bot(object):
         returns true if it's a game-day and there is no game_thread.pre link.
         """
         local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
-        game_thread_links = self.get_game_thread_links_for_date(datetime.now(local_timezone))
+        game_thread_links = self.get_game_thread_links_for_date(datetime.now(local_timezone), game_pre_post='pre')
         return self.is_today_a_game_day() \
             and (game_thread_links is None
                  or (game_thread_links is not None and game_thread_links.pre is None))
@@ -652,7 +663,7 @@ class bulls_bot(object):
         and there is no game_thread.game link.
         """
         local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
-        game_thread_links = self.get_game_thread_links_for_date(datetime.now(local_timezone))
+        game_thread_links = self.get_game_thread_links_for_date(datetime.now(local_timezone), game_pre_post='game')
         return self.is_today_a_game_day() \
             and -1 < self.get_seconds_till_game() < self.game_thread_create_time \
             and (game_thread_links is None
@@ -666,7 +677,8 @@ class bulls_bot(object):
         if self.authenticate_reddit():
             flair = self.game_thread_flairs[game_pre_post]
             local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
-            todays_game_thread_links = self.get_game_thread_links_for_date(datetime.now(local_timezone))
+            todays_game_thread_links = self.get_game_thread_links_for_date(datetime.now(local_timezone),
+                                                                           game_pre_post=game_pre_post)
             link = None
             if todays_game_thread_links is not None:
                 link = getattr(todays_game_thread_links, game_pre_post)
@@ -722,7 +734,8 @@ class bulls_bot(object):
             need_to_create_postgame_thread = self.need_to_create_postgame_thread()
             need_to_create_pregame_thread = self.need_to_create_pregame_thread()
             need_to_create_game_thread = self.need_to_create_game_thread()
-            need_to_update_game_thread = self.get_game_thread_links_for_date(datetime.now(local_timezone)) is not None \
+            need_to_update_game_thread = \
+                self.get_game_thread_links_for_date(datetime.now(local_timezone), game_pre_post='game') is not None \
                 and (game_is_live or self.game_day_info['current_status'] == 'LIVE'
                      or self.game_day_info['current_status'] == 'LIVEOT')
 
