@@ -1,3 +1,7 @@
+.. figure:: https://raw.githubusercontent.com/bullsbot/BullsBot/master/bullsBot.png
+   :alt: Bullsbot Logo
+   :align: center
+
 Bulls Bot
 ---------
 
