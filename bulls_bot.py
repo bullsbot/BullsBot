@@ -9,6 +9,7 @@ import urllib2
 import praw
 from random import randrange
 import nba_game_scraper
+import nba_standings_scraper
 
 
 class GameThreadLinks(object):
@@ -64,6 +65,13 @@ class bulls_bot(object):
         self.teamInfoFilePath = "data/teams.csv"
         # load team data
         self.load_teams()
+        # standings
+        self.latest_standings = None
+        self.standings_sidebar_last_updated = None
+        self.sidebar_standings_start_string = "####**Standings**\nTeam|W|L|PCT\n:--|:--:|:--:|:--:\n"
+        self.sidebar_standings_end_string = "\n\n"
+        self.sidebar_standings_row_fmt = "[](#{short_name}){med_name}|{wins}|{losses}|{percent}\n"
+
         # gameday info
         self.game_day_info = None
         self.last_game_day_check = datetime.min
@@ -140,22 +148,30 @@ class bulls_bot(object):
     def load_teams(self):
         # load team info
         self.team_dict = {}
+        self.team_dict_med_key = {}
         self.team_dict_short_key = {}
         with open(self.teamInfoFilePath, "r") as teamInfoFile:
             for teamInfoRow in teamInfoFile.read().split("\n"):
                 teamInfo = teamInfoRow.split(',')
-                self.team_dict[teamInfo[0]] = {
+                tmp_team_dict = {
                     'long_name': teamInfo[0],
-                    'short_name': teamInfo[1].upper(),
-                    'sub': teamInfo[2],
-                    'timezone': teamInfo[3]
+                    'med_name': teamInfo[1],
+                    'short_name': teamInfo[2].upper(),
+                    'sub': teamInfo[3],
+                    'timezone': teamInfo[4],
+                    'division': teamInfo[5]
                 }
-                self.team_dict_short_key[teamInfo[1].upper()] = {
-                    'long_name': teamInfo[0],
-                    'short_name': teamInfo[1].upper(),
-                    'sub': teamInfo[2],
-                    'timezone': teamInfo[3]
-                }
+                self.team_dict[teamInfo[0]] = tmp_team_dict
+                self.team_dict_med_key[teamInfo[1]] = tmp_team_dict
+                self.team_dict_short_key[teamInfo[2].upper()] = tmp_team_dict
+
+    def get_standings(self):
+        if self.latest_standings is None:
+            self.load_standings()
+        return self.latest_standings
+
+    def load_standings(self):
+        self.latest_standings = nba_standings_scraper.scrape_standings()
 
     def is_game_vevent(self, vevent):
         # simple and stupid for now
@@ -578,12 +594,11 @@ class bulls_bot(object):
                         game_pre_post = key
                 if game_pre_post is not None:
                     found = True
-                    print 'post: ' + post.title + ' ' + str(post.link_flair_css_class) + ' ' + \
-                          str(datetime.fromtimestamp(post.created_utc, local_timezone).date())
                     # if it's flair matches one of our game thread flairs
                     if getattr(gtl, game_pre_post) is None:
                         # set it
-                        print 'SETTING ' + game_pre_post + ' TO ' + post.title
+                        print 'found ' + game_pre_post + ' game thread for ' + \
+                        str(datetime.fromtimestamp(post.created_utc, local_timezone).date())
                         setattr(gtl, game_pre_post, post.permalink)
 
             elif datetime.fromtimestamp(post.created_utc, local_timezone).date() < date:
@@ -617,10 +632,10 @@ class bulls_bot(object):
             # couldn't find link, let's find them
             tmp_game_thread = self.findGameThreadsByDate(self.reddit.get_subreddit(self.subreddit),
                                                      missing_game_thread_flairs, date.date(), local_timezone)
-            # set missing game threads
-            if game_thread is None:
+            # set missing game threads if found
+            if game_thread is None and tmp_game_thread is not None:
                 game_thread = tmp_game_thread
-            else:
+            elif tmp_game_thread is not None:
                 for key in missing_game_thread_flairs.keys():
                     setattr(game_thread, key, getattr(tmp_game_thread, key))
             # save game thread
@@ -769,17 +784,22 @@ class bulls_bot(object):
                     if key.find(self.team_dict[self.teamName]['short_name']) is not -1:
                         game_data = value
 
+                home_team_info = self.team_dict_short_key[game_data['home_team'].upper()]
+                home_team_standings = self.get_standings()[home_team_info['med_name']]
+                away_team_info = self.team_dict_short_key[game_data['away_team'].upper()]
+                away_team_standings = self.get_standings()[away_team_info['med_name']]
+
                 if need_to_create_pregame_thread:
                     # create pre-game thread
                     pregame_thread_markup = self.pre_game_thread_fmt.format(
                         home_team_short=game_data['home_team'].upper(),
-                        home_team_name=self.team_dict_short_key[game_data['home_team'].upper()]['long_name'],
-                        home_subreddit=self.team_dict_short_key[game_data['home_team'].upper()]['sub'],
-                        home_team_win_loss='-',
+                        home_team_name=home_team_info['long_name'],
+                        home_subreddit=home_team_info['sub'],
+                        home_team_win_loss=home_team_standings['wins'] + '-' + home_team_standings['losses'],
                         away_team_short=game_data['away_team'].upper(),
-                        away_team_name=self.team_dict_short_key[game_data['away_team'].upper()]['long_name'],
-                        away_subreddit=self.team_dict_short_key[game_data['away_team'].upper()]['sub'],
-                        away_team_win_loss='-',
+                        away_team_name=away_team_info['long_name'],
+                        away_subreddit=away_team_info['sub'],
+                        away_team_win_loss=away_team_standings['wins'] + '-' + away_team_standings['losses'],
                         link_date=link_date,
                         full_date=local_game_time.strftime(self.pre_game_date_fmt),
                         broadcast='',
@@ -790,10 +810,10 @@ class bulls_bot(object):
                     )
                     # format the title with game data
                     pregame_thread_title = self.pre_game_thread_title_fmt.format(
-                        home_team_name=self.team_dict_short_key[game_data['home_team'].upper()]['long_name'],
-                        home_team_win_loss='-',
-                        away_team_name=self.team_dict_short_key[game_data['away_team'].upper()]['long_name'],
-                        away_team_win_loss='-',
+                        home_team_name=home_team_info['long_name'],
+                        home_team_win_loss=home_team_standings['wins'] + '-' + home_team_standings['losses'],
+                        away_team_name=away_team_info['long_name'],
+                        away_team_win_loss=away_team_standings['wins'] + '-' + away_team_standings['losses'],
                         month_day_year=local_game_time.strftime(self.game_thread_title_date_fmt)
                     )
                     success = self.post_new_or_update_game_thread(pregame_thread_markup,
@@ -814,13 +834,13 @@ class bulls_bot(object):
                         # format the template with game data
                         postgame_thread_markup = self.post_game_thread_fmt.format(
                             home_team_short=game_data['home_team'].upper(),
-                            home_team_name=self.team_dict_short_key[game_data['home_team'].upper()]['long_name'],
+                            home_team_name=home_team_info['long_name'],
                             home_score=home_score,
-                            home_team_win_loss='-',
+                            home_team_win_loss=home_team_standings['wins'] + '-' + home_team_standings['losses'],
                             away_team_short=game_data['away_team'].upper(),
-                            away_team_name=self.team_dict_short_key[game_data['away_team'].upper()]['long_name'],
+                            away_team_name=away_team_info['sub'],
                             away_score=away_score,
-                            away_team_win_loss='-',
+                            away_team_win_loss=away_team_standings['wins'] + '-' + away_team_standings['losses'],
                             link_date=link_date,
                             full_date=local_game_time.strftime(self.game_thread_title_date_fmt)
                         )
@@ -828,16 +848,20 @@ class bulls_bot(object):
                         our_score = home_score
                         their_score = away_score
                         other_team = self.team_dict_short_key[game_data['away_team'].upper()]['long_name']
-                        our_win_loss = '-'
-                        their_win_loss = '-'
+                        our_standings = home_team_standings
+                        their_standings = away_team_standings
                         if self.team_dict_short_key[game_data['away_team'].upper()]['long_name'] == self.teamName:
                             our_score = away_score
                             their_score = home_score
                             other_team = self.team_dict_short_key[game_data['home_team'].upper()]['long_name']
-                            our_win_loss = '-'
-                            their_win_loss = '-'
+                            their_standings = home_team_standings
+                            our_standings = away_team_standings
                         beat_or_lose = ' defeat the '
+                        our_win_loss = str(1 + int(our_standings['wins'])) + '-' + our_standings['losses']
+                        their_win_loss = their_standings['wins'] + '-' + str(1 + int(their_standings['losses']))
                         if int(our_score) < int(their_score):
+                            our_win_loss = our_standings['wins'] + '-' + str(1 + int(our_standings['losses']))
+                            their_win_loss = str(1 + int(their_standings['wins'])) + '-' + their_standings['wins']
                             beat_or_lose = ' fall to the '
                         # format the title with game data
                         postgame_thread_title = self.post_game_thread_title_fmt.format(
@@ -883,6 +907,53 @@ class bulls_bot(object):
                         # post or update game thread
                         success = self.post_new_or_update_game_thread(game_thread_markup, game_thread_title, 'game')
 
+    def update_standings_sidebar(self):
+        """ Updates subreddit sidebar with standings table once a day and after a game
+        """
+        current_time = datetime.now(pytz.timezone(self.team_dict[self.teamName]['timezone']))
+        if self.is_game_over() or self.standings_sidebar_last_updated is None \
+                or self.standings_sidebar_last_updated.date() < current_time.date():
+            # if we haven't updated today, update
+            standings_table = self.generate_standings()
+            if self.authenticate_reddit():
+                print "fetching subreddit settings"
+                settings = self.reddit.get_settings(self.subreddit)
+                description_markup = settings['description']
+                print "updating subreddit settings with standings"
+                before_standings_start = description_markup.split(self.sidebar_standings_start_string, 1)[0]
+                after_standings_start = description_markup.split(self.sidebar_standings_start_string, 1)[1]
+                after_standings_end = after_standings_start.split(self.sidebar_standings_end_string, 1)[1]
+
+                settings['description'] = before_standings_start \
+                    + self.sidebar_standings_start_string \
+                    + standings_table \
+                    + self.sidebar_standings_end_string \
+                    + after_standings_end
+
+                self.reddit.get_subreddit(self.subreddit).update_settings(
+                    description=settings['description']
+                )
+                self.standings_sidebar_last_updated = current_time
+                print "updated standings sidebar at " + str(self.standings_sidebar_last_updated)
+
+    def generate_standings(self):
+        """ formats markup with division team standings
+        """
+        sorted_team_standings = sorted(self.get_standings().items(), key=lambda t: float(t[1]['percent']))
+        sorted_team_standings.reverse()
+        division = self.team_dict[self.teamName]['division']
+        standings_string = ""
+        for med_name, team_standings in sorted_team_standings:
+            if self.team_dict_med_key[med_name]['division'] == division:
+                standings_string += self.sidebar_standings_row_fmt.format(
+                    short_name=self.team_dict_med_key[med_name]['short_name'],
+                    med_name=med_name,
+                    wins=team_standings['wins'],
+                    losses=team_standings['losses'],
+                    percent=team_standings['percent']
+                )
+        return standings_string.rstrip("\n")
+
 
 def schedule_schedule_updates():
     bot = bulls_bot()
@@ -890,10 +961,16 @@ def schedule_schedule_updates():
     consecutive_error_count = 0
     while run_updates:
         try:
-            bot.generate_or_update_game_thread_if_necessary()
-            schedule = bot.generate_default_schedule()  # get schedule
-            bot.update_schedule(schedule)               # update subreddit
-            update_freq = bot.get_current_update_freq() # figure out when to update again
+            try:
+                bot.load_standings()                                  # update standings
+            except Exception:
+                print "unable to load standings at " + str(datetime.now())
+                pass
+            bot.update_standings_sidebar()                        # update standings in sidebar if necessary
+            bot.generate_or_update_game_thread_if_necessary()     # update or create game threads if necessary
+            schedule = bot.generate_default_schedule()            # get schedule
+            bot.update_schedule(schedule)                         # update schedule in sidebar
+            update_freq = bot.get_current_update_freq()           # figure out when to update again
             consecutive_error_count = 0
         except KeyboardInterrupt:
             print "keyboard interrupt. Stopping schedule updates"

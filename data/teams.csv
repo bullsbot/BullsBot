@@ -1,32 +1,32 @@
-New York Knicks,NYK,nyknicks,America/New_York
-Los Angeles Lakers,LAL,lakers,America/Los_Angeles
-Memphis Grizzlies,MEM,memphisgrizzlies,US/Central
-Toronto Raptors,TOR,torontoraptors,America/Toronto
-San Antonio Spurs,SAS,nbaspurs,US/Central
-Houston Rockets,HOU,nbaspurs,US/Central
-Detroit Pistons,DET,detroitpistons,US/Eastern
-Boston Celtics,BOS,bostonceltics,US/Eastern
-Miami Heat,MIA,heat,US/Eastern
-Orlando Magic,ORL,orlandomagic,US/Eastern
-Portland Trail Blazers,POR,ripcity,US/Pacific
-Golden State Warriors,GSW,warriors,US/Pacific
-Chicago Bulls,CHI,chicagobulls,America/Chicago
-Washington Wizards,WAS,washingtonwizards,US/Eastern
-Dallas Mavericks,DAL,mavericks,US/Central
-Minnesota Timberwolves,MIN,timberwolves,US/Central
-Los Angeles Clippers,LAC,laclippers,America/Los_Angeles
-Oklahoma City Thunder,OKC,thunder,US/Central
-Milwaukee Bucks,MIL,mkebucks,US/Central
-New Orleans Hornets,NOP,nolapelicans,US/Central
-New Orleans Pelicans,NOP,nolapelicans,US/Central
-Charlotte Bobcats,CHA,charlottehornets,US/Eastern
-Charlotte Hornets,CHA,charlottehornets,US/Eastern
-Utah Jazz,UTA,utahjazz,US/Mountain
-Phoenix Suns,PHX,suns,America/Phoenix
-Sacramento Kings,SAC,kings,US/Pacific
-Philadelphia 76ers,PHI,sixers,US/Eastern
-Cleveland Cavaliers,CLE,clevelandcavs,US/Eastern
-Atlanta Hawks,ATL,atlantahawks,US/Eastern
-Brooklyn Nets,BKN,gonets,US/Eastern
-Indiana Pacers,IND,pacers,America/Indiana/Indianapolis
-Denver Nuggets,DEN,denvernuggets,US/Mountain
+New York Knicks,New York,NYK,nyknicks,America/New_York,Atlantic
+Los Angeles Lakers,LA Lakers,LAL,lakers,America/Los_Angeles,Pacific
+Memphis Grizzlies,Memphis,MEM,memphisgrizzlies,US/Central,Southwest
+Toronto Raptors,Toronto,TOR,torontoraptors,America/Toronto,Atlantic
+San Antonio Spurs,San Antonio,SAS,nbaspurs,US/Central,Southwest
+Houston Rockets,Houston,HOU,nbaspurs,US/Central,Southwest
+Detroit Pistons,Detroit,DET,detroitpistons,US/Eastern,Central
+Boston Celtics,Boston,BOS,bostonceltics,US/Eastern,Atlantic
+Miami Heat,Miami,MIA,heat,US/Eastern,Southeast
+Orlando Magic,Orlando,ORL,orlandomagic,US/Eastern,Southeast
+Portland Trail Blazers,Portland,POR,ripcity,US/Pacific,Northwest
+Golden State Warriors,Golden State,GSW,warriors,US/Pacific,Pacific
+Chicago Bulls,Chicago,CHI,chicagobulls,America/Chicago,Central
+Washington Wizards,Washington,WAS,washingtonwizards,US/Eastern,Southeast
+Dallas Mavericks,Dallas,DAL,mavericks,US/Central,Southwest
+Minnesota Timberwolves,Minnesota,MIN,timberwolves,US/Central,Northwest
+Los Angeles Clippers,LA Clippers,LAC,laclippers,America/Los_Angeles,Pacific
+Oklahoma City Thunder,Oklahoma City,OKC,thunder,US/Central,Northwest
+Milwaukee Bucks,Milwaukee,MIL,mkebucks,US/Central,Central
+New Orleans Hornets,New Orleans,NOP,nolapelicans,US/Central,Southwest
+New Orleans Pelicans,New Orleans,NOP,nolapelicans,US/Central,Southwest
+Charlotte Bobcats,Charlotte,CHA,charlottehornets,US/Eastern,Southeast
+Charlotte Hornets,Charlotte,CHA,charlottehornets,US/Eastern,Southeast
+Utah Jazz,Utah,UTA,utahjazz,US/Mountain,Northwest
+Phoenix Suns,Phoenix,PHX,suns,America/Phoenix,Pacific
+Sacramento Kings,Sacramento,SAC,kings,US/Pacific,Pacific
+Philadelphia 76ers,Philadelphia,PHI,sixers,US/Eastern,Atlantic
+Cleveland Cavaliers,Cleveland,CLE,clevelandcavs,US/Eastern,Central
+Atlanta Hawks,Atlanta,ATL,atlantahawks,US/Eastern,Southeast
+Brooklyn Nets,Brooklyn,BKN,gonets,US/Eastern,Atlantic
+Indiana Pacers,Indiana,IND,pacers,America/Indiana/Indianapolis,Central
+Denver Nuggets,Denver,DEN,denvernuggets,US/Mountain,Northwest
