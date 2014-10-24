@@ -171,7 +171,9 @@ class bulls_bot(object):
         return self.latest_standings
 
     def load_standings(self):
-        self.latest_standings = nba_standings_scraper.scrape_standings()
+        tmp_standings = nba_standings_scraper.scrape_standings()
+        if tmp_standings and tmp_standings is not None:
+            self.latest_standings = tmp_standings
 
     def is_game_vevent(self, vevent):
         # simple and stupid for now
@@ -881,15 +883,15 @@ class bulls_bot(object):
                         # format the template with game data
                         game_thread_markup = self.current_game_thread_fmt.format(
                             home_team_short=game_data['home_team'].upper(),
-                            home_team_name=self.team_dict_short_key[game_data['home_team'].upper()]['long_name'],
-                            home_subreddit=self.team_dict_short_key[game_data['home_team'].upper()]['sub'],
+                            home_team_name=home_team_info['long_name'],
+                            home_subreddit=home_team_info['sub'],
                             home_score=home_score,
-                            home_team_win_loss='-',
+                            home_team_win_loss=home_team_standings['wins'] + '-' + home_team_standings['losses'],
                             away_team_short=game_data['away_team'].upper(),
-                            away_team_name=self.team_dict_short_key[game_data['away_team'].upper()]['long_name'],
-                            away_subreddit=self.team_dict_short_key[game_data['away_team'].upper()]['sub'],
+                            away_team_name=away_team_info['long_name'],
+                            away_subreddit=away_team_info['sub'],
                             away_score=away_score,
-                            away_team_win_loss='-',
+                            away_team_win_loss=away_team_standings['wins'] + '-' + away_team_standings['losses'],
                             game_time_eastern=game_time_eastern,
                             game_time_central=game_time_central,
                             game_time_mountain=game_time_mountain,
@@ -898,10 +900,10 @@ class bulls_bot(object):
                         )
                         # format the title with game data
                         game_thread_title = self.game_thread_title_fmt.format(
-                            home_team_name=self.team_dict_short_key[game_data['home_team'].upper()]['long_name'],
-                            home_team_win_loss='-',
-                            away_team_name=self.team_dict_short_key[game_data['away_team'].upper()]['long_name'],
-                            away_team_win_loss='-',
+                            home_team_name=home_team_info['long_name'],
+                            home_team_win_loss=home_team_standings['wins'] + '-' + home_team_standings['losses'],
+                            away_team_name=away_team_info['long_name'],
+                            away_team_win_loss=away_team_standings['wins'] + '-' + away_team_standings['losses'],
                             month_day_year=local_game_time.strftime(self.game_thread_title_date_fmt)
                         )
                         # post or update game thread
