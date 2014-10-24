@@ -707,8 +707,15 @@ class bulls_bot(object):
                     # sticky and flair
                     game_thread_submission.sticky()
                     game_thread_submission.set_flair(flair_text=flair, flair_css_class=flair)
+                    # create and replace reddit stream link (see reddit-stream.com)
+                    game_thread_submission.edit(
+                        game_thread_markup +
+                        self.current_game_thread_post_text.replace('reddit-stream.com/', 'reddit-stream.com/comments/' +
+                                                                                         game_thread_submission.id)
+                    )
                     success = True
             else:
+                # submit new pre or post thread
                 game_thread_submission = self.reddit.get_subreddit(self.subreddit).submit(
                     text=game_thread_markup,
                     title=game_thread_title
@@ -721,6 +728,7 @@ class bulls_bot(object):
                 # sticky and flair
                 game_thread_submission.sticky()
                 game_thread_submission.set_flair(flair_text=flair, flair_css_class=flair)
+                success = True
 
         return success
 
