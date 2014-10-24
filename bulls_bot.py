@@ -394,7 +394,7 @@ class bulls_bot(object):
                 raise
             # if game start time has passed and we're in the middle of the game
             #  and the game is not listed as live or final or postponed, raise error
-            if chiDateTime < datetime.now(timezone) \
+            if chiDateTime < datetime.now(timezone) and self.game_day_info is not None \
                 and (self.game_day_info['current_status'] == 'LIVE' or self.game_day_info['current_status'] == 'LIVEOT') \
                 and not (game_data['current_status'] == "LIVE" or game_data['current_status'] == "LIVEOT"
                          or game_data['current_status'] == "RECAP" or game_data['current_status'] == "RECAPOT"
