@@ -859,11 +859,11 @@ class bulls_bot(object):
                             their_standings = home_team_standings
                             our_standings = away_team_standings
                         beat_or_lose = ' defeat the '
-                        our_win_loss = str(1 + int(our_standings['wins'])) + '-' + our_standings['losses']
-                        their_win_loss = their_standings['wins'] + '-' + str(1 + int(their_standings['losses']))
+                        our_win_loss = our_standings['wins'] + '-' + our_standings['losses']
+                        their_win_loss = their_standings['wins'] + '-' + their_standings['losses']
                         if int(our_score) < int(their_score):
-                            our_win_loss = our_standings['wins'] + '-' + str(1 + int(our_standings['losses']))
-                            their_win_loss = str(1 + int(their_standings['wins'])) + '-' + their_standings['wins']
+                            our_win_loss = our_standings['wins'] + '-' + our_standings['losses']
+                            their_win_loss = their_standings['wins'] + '-' + their_standings['wins']
                             beat_or_lose = ' fall to the '
                         # format the title with game data
                         postgame_thread_title = self.post_game_thread_title_fmt.format(
@@ -913,7 +913,7 @@ class bulls_bot(object):
         """ Updates subreddit sidebar with standings table once a day and after a game
         """
         current_time = datetime.now(pytz.timezone(self.team_dict[self.teamName]['timezone']))
-        if self.is_game_over() or self.standings_sidebar_last_updated is None \
+        if self.need_to_create_postgame_thread() or self.standings_sidebar_last_updated is None \
                 or self.standings_sidebar_last_updated.date() < current_time.date():
             # if we haven't updated today, update
             standings_table = self.generate_standings()
