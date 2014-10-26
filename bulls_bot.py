@@ -103,9 +103,8 @@ class bulls_bot(object):
         self.pre_game_thread_fmt = "HOME TEAM|INFORMATION|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|*{full_date}*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n\n[](#empty)|DETAILED OVERVIEW|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* {broadcast}|[](#empty)\n[](#empty)|*GAME TIMES* [Eastern: {game_time_eastern}](#TIME) / [Central: {game_time_central}](#TIME) / [Mountain: {game_time_mountain}](#TIME) / [Pacific:  {game_time_pacific}](#TIME)|[](#empty)\n[](#empty)|*MISC/NOTES* [Game Story](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html)|[](#empty)\n[](#empty)|*SUBREDDITS* /r/{home_subreddit} / /r/{away_subreddit}|[](#empty)\n"
         self.pre_game_thread_title_fmt = "PRE GAME: {home_team_name} ({home_team_win_loss}) vs. {away_team_name} ({away_team_win_loss}) ({month_day_year})"
         self.pre_game_date_fmt = "%A***%b %d***%Y"
-        self.current_game_thread_fmt = "HOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *VERSUS* *[BOX SCORE](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html#nbaGIboxscore)*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n\n"
+        self.current_game_thread_fmt = "HOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *VERSUS* *[BOX SCORE](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html#nbaGIboxscore)*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n\n[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* {broadcast}|[](#empty)\n[](#empty)|*STREAMS* TBD|[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)|[](#empty)\n"
         self.current_game_thread_split_text = "[](#empty)|INFORMATION"
-        self.current_game_thread_post_text = "[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* {broadcast}|[](#empty)\n[](#empty)|*STREAMS* TBD|[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)|[](#empty)\n"
         self.game_thread_title_fmt = "GAME THREAD: {home_team_name} ({home_team_win_loss}) vs. {away_team_name} ({away_team_win_loss}) ({month_day_year})"
         self.game_thread_title_date_fmt = "%b %d, %Y"
         self.game_thread_flairs = dict(
@@ -696,25 +695,26 @@ class bulls_bot(object):
             local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
             todays_game_thread_links = self.get_game_thread_links_for_date(datetime.now(local_timezone),
                                                                            game_pre_post=game_pre_post)
-            link = None
-            if todays_game_thread_links is not None:
-                link = getattr(todays_game_thread_links, game_pre_post)
             if game_pre_post == 'game':
-                # TODO: We want to take one game thread string and split it. We don't need self.current_game_thread_post_text
-                if todays_game_thread_links is not None and link is not None:
+                link = None
+                if todays_game_thread_links is not None:
+                    link = getattr(todays_game_thread_links, game_pre_post)
+
+                if link is not None:
                     # update thread
+                    updated_game_thread_markup = game_thread_markup.split(self.current_game_thread_split_text)[0]
                     game_thread_submission = self.reddit.get_submission(url=link)
                     current_game_thread_post_text = \
                         self.current_game_thread_split_text +\
                         game_thread_submission.selftext.split(self.current_game_thread_split_text)[1]
                     game_thread_submission.edit(
-                        game_thread_markup + current_game_thread_post_text
+                        updated_game_thread_markup + current_game_thread_post_text
                     )
                     success = True
                 else:
                     # submit new game thread
                     game_thread_submission = self.reddit.get_subreddit(self.subreddit).submit(
-                        text=game_thread_markup + self.current_game_thread_post_text,
+                        text=game_thread_markup,
                         title=game_thread_title
                     )
                     # add game thread link to game_thread_links dict
@@ -727,9 +727,8 @@ class bulls_bot(object):
                     game_thread_submission.set_flair(flair_text=flair, flair_css_class=flair)
                     # create and replace reddit stream link (see reddit-stream.com)
                     game_thread_submission.edit(
-                        game_thread_markup +
-                        self.current_game_thread_post_text.replace('reddit-stream.com/', 'reddit-stream.com/comments/' +
-                                                                                         game_thread_submission.id)
+                        game_thread_markup.replace('reddit-stream.com/',
+                                                   'reddit-stream.com/comments/' + game_thread_submission.id)
                     )
                     success = True
             else:
@@ -905,7 +904,8 @@ class bulls_bot(object):
                             game_time_central=game_time_central,
                             game_time_mountain=game_time_mountain,
                             game_time_pacific=game_time_pacific,
-                            link_date=link_date
+                            link_date=link_date,
+                            broadcast=broadcast
                         )
                         # format the title with game data
                         game_thread_title = self.game_thread_title_fmt.format(
