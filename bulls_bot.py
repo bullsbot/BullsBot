@@ -640,7 +640,8 @@ class bulls_bot(object):
                 for key in missing_game_thread_flairs.keys():
                     setattr(game_thread, key, getattr(tmp_game_thread, key))
             # save game thread
-            self.add_game_thread_links(game_thread, gameDate=date)
+            if game_thread is not None:
+                self.add_game_thread_links(game_thread, gameDate=date)
         return game_thread
 
     def get_game_thread_link_as_formatted_string(self, date):
@@ -753,7 +754,17 @@ class bulls_bot(object):
         """
         Creates or updates game threads as necessary.
         """
-        if self.is_today_a_game_day():
+        if not self.is_today_a_game_day():
+            if self.authenticate_reddit():
+                subreddit = self.reddit.get_subreddit(self.subreddit)
+                submission = subreddit.get_hot().next()
+                if submission.stickied and submission.link_flair_css_class in self.game_thread_flairs.values():
+                    # if submission is stickied with one of our game thread flairs, un-sticky it
+                    print "unstickying last " + submission.link_flair_css_class
+                    submission.unsticky()
+
+        else:
+            # if it is a game day, check to see if we need to create a game thread
             local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
             game_is_live = self.is_the_game_on_now()
             need_to_create_postgame_thread = self.need_to_create_postgame_thread()
