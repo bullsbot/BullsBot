@@ -28,27 +28,30 @@ def get_games(date, time_till_stale=10800):
     return games
 
 
+def fetch_html(url):
+    html = ''
+    try:
+        html = urllib2.urlopen(url, timeout=2).read()
+    except urllib2.URLError, e:
+        if isinstance(e.reason, socket.timeout):
+            # try once again
+            print "timeout, trying again"
+            html = urllib2.urlopen(url, timeout=3).read()
+        else:
+            raise
+    except socket.timeout:
+        # For Python 2.7
+        print "timeout, trying again"
+        html = urllib2.urlopen(url, timeout=3).read()
+    return html
+
+
 def fetch_nba_games_html(date):
         # todo: try-catch if more timeouts?
         date_format = "%Y%m%d"
         scores_url = "http://www.nba.com/gameline/"
         print "Fetching " + scores_url + date.strftime(date_format)
-        try:
-            game_html = urllib2.urlopen(scores_url + date.strftime(date_format), timeout=2).read()
-        except urllib2.URLError, e:
-            if isinstance(e.reason, socket.timeout):
-                # try once again
-                print "timeout, trying again"
-                game_html = urllib2.urlopen(scores_url + date.strftime(date_format), timeout=3).read()
-            else:
-                raise
-        except socket.timeout:
-            # For Python 2.7
-            print "timeout, trying again"
-            game_html = urllib2.urlopen(scores_url + date.strftime(date_format), timeout=3).read()
-
-        print "Fetched"
-        return game_html
+        return fetch_html(scores_url + date.strftime(date_format))
 
 
 def parse_nba_games_html(games_html):
@@ -89,3 +92,39 @@ def parse_nba_games_html(games_html):
         return games
 
 
+def scrape_broadcast_info(date, home_team_short, away_team_short):
+    broadcasts = dict(
+        local=[],
+        national=[]
+    )
+    url = "http://www.nba.com/games/{date}/{away_team_short}{home_team_short}/gameinfo.html"
+    url_date_format = "%Y%m%d"
+    game_info_url = url.format(
+        date=date.strftime(url_date_format),
+        away_team_short=away_team_short,
+        home_team_short=home_team_short
+    )
+    html = fetch_html(game_info_url)
+    soup = BeautifulSoup(html)
+    broadcasts_rows = soup.select('table#nbaGITvInfo > tr')
+    for row in broadcasts_rows:
+        children = list(row.children)
+        children.reverse()
+        if len(children) > 3:
+            broadcasts[children[1].string.strip().lower()].append(children[2].string.strip())
+
+    return broadcasts
+
+if __name__ == "__main__":
+    import datetime
+    broadcast_info = scrape_broadcast_info(datetime.date.fromordinal(datetime.date.today().toordinal()-1), "CHI", "MIN")
+
+    # broadcast_info = nba_game_scraper.scrape_broadcast_info(datetime.now(local_timezone),
+    #                                                    game_data['home_team'].upper(),
+    #                                                    game_data['away_team'].upper())
+    broadcast_strings = []
+    for key, channels in broadcast_info.iteritems():
+        if len(channels) > 0:
+            broadcast_strings.append(key.capitalize() + ": **" + "** ~~/~~ **".join(channels) + "**")
+    broadcast = "  ~~/~~  ".join(broadcast_strings)
+    print broadcast

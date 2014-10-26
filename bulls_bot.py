@@ -105,7 +105,7 @@ class bulls_bot(object):
         self.pre_game_date_fmt = "%A***%b %d***%Y"
         self.current_game_thread_fmt = "HOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *VERSUS* *[BOX SCORE](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html#nbaGIboxscore)*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n\n"
         self.current_game_thread_split_text = "[](#empty)|INFORMATION"
-        self.current_game_thread_post_text = "[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* |[](#empty)\n[](#empty)|*STREAMS* |[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)|[](#empty)\n"
+        self.current_game_thread_post_text = "[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* {broadcast}|[](#empty)\n[](#empty)|*STREAMS* TBD|[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)|[](#empty)\n"
         self.game_thread_title_fmt = "GAME THREAD: {home_team_name} ({home_team_win_loss}) vs. {away_team_name} ({away_team_win_loss}) ({month_day_year})"
         self.game_thread_title_date_fmt = "%b %d, %Y"
         self.game_thread_flairs = dict(
@@ -700,6 +700,7 @@ class bulls_bot(object):
             if todays_game_thread_links is not None:
                 link = getattr(todays_game_thread_links, game_pre_post)
             if game_pre_post == 'game':
+                # TODO: We want to take one game thread string and split it. We don't need self.current_game_thread_post_text
                 if todays_game_thread_links is not None and link is not None:
                     # update thread
                     game_thread_submission = self.reddit.get_submission(url=link)
@@ -790,6 +791,14 @@ class bulls_bot(object):
                 home_team_standings = self.get_standings()[home_team_info['med_name']]
                 away_team_info = self.team_dict_short_key[game_data['away_team'].upper()]
                 away_team_standings = self.get_standings()[away_team_info['med_name']]
+                broadcast_info = nba_game_scraper.scrape_broadcast_info(datetime.now(local_timezone),
+                                                                        game_data['home_team'].upper(),
+                                                                        game_data['away_team'].upper())
+                broadcast_strings = []
+                for key, channels in broadcast_info.iteritems():
+                    if len(channels) > 0:
+                        broadcast_strings.append(key.capitalize() + ": **" + "** ~~/~~ **".join(channels) + "**")
+                broadcast = "  ~~/~~  ".join(broadcast_strings)
 
                 if need_to_create_pregame_thread:
                     # create pre-game thread
@@ -804,7 +813,7 @@ class bulls_bot(object):
                         away_team_win_loss=away_team_standings['wins'] + '-' + away_team_standings['losses'],
                         link_date=link_date,
                         full_date=local_game_time.strftime(self.pre_game_date_fmt),
-                        broadcast='',
+                        broadcast=broadcast,
                         game_time_eastern=game_time_eastern,
                         game_time_central=game_time_central,
                         game_time_mountain=game_time_mountain,
