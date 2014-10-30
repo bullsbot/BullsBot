@@ -651,10 +651,7 @@ class bulls_bot(object):
         formatted_string = ''
         game_thread_links = self.get_game_thread_links_for_date(date, game_pre_post='game')
         if game_thread_links is not None and game_thread_links.game is not None:
-            long_link = game_thread_links.game
-            redditcom = "reddit.com/"
-            short_link = redditcom + long_link.split(redditcom)[1].split("/")[3]
-            formatted_string = self.game_thread_link_fmt.format(link=short_link)
+            formatted_string = self.game_thread_link_fmt.format(link=game_thread_links.game)
         return formatted_string
 
     def need_to_create_postgame_thread(self):
