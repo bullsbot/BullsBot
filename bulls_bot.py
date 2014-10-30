@@ -933,30 +933,27 @@ class bulls_bot(object):
         """ Updates subreddit sidebar with standings table once a day and after a game
         """
         current_time = datetime.now(pytz.timezone(self.team_dict[self.teamName]['timezone']))
-        if self.need_to_create_postgame_thread() or self.standings_sidebar_last_updated is None \
-                or self.standings_sidebar_last_updated.date() < current_time.date():
-            # if we haven't updated today, update
-            standings_table = self.generate_standings()
-            if self.authenticate_reddit():
-                print "fetching subreddit settings"
-                settings = self.reddit.get_settings(self.subreddit)
-                description_markup = settings['description']
-                print "updating subreddit settings with standings"
-                before_standings_start = description_markup.split(self.sidebar_standings_start_string, 1)[0]
-                after_standings_start = description_markup.split(self.sidebar_standings_start_string, 1)[1]
-                after_standings_end = after_standings_start.split(self.sidebar_standings_end_string, 1)[1]
+        standings_table = self.generate_standings()
+        if self.authenticate_reddit():
+            print "fetching subreddit settings"
+            settings = self.reddit.get_settings(self.subreddit)
+            description_markup = settings['description']
+            print "updating subreddit settings with standings"
+            before_standings_start = description_markup.split(self.sidebar_standings_start_string, 1)[0]
+            after_standings_start = description_markup.split(self.sidebar_standings_start_string, 1)[1]
+            after_standings_end = after_standings_start.split(self.sidebar_standings_end_string, 1)[1]
 
-                settings['description'] = before_standings_start \
-                    + self.sidebar_standings_start_string \
-                    + standings_table \
-                    + self.sidebar_standings_end_string \
-                    + after_standings_end
+            settings['description'] = before_standings_start \
+                + self.sidebar_standings_start_string \
+                + standings_table \
+                + self.sidebar_standings_end_string \
+                + after_standings_end
 
-                self.reddit.get_subreddit(self.subreddit).update_settings(
-                    description=settings['description']
-                )
-                self.standings_sidebar_last_updated = current_time
-                print "updated standings sidebar at " + str(self.standings_sidebar_last_updated)
+            self.reddit.get_subreddit(self.subreddit).update_settings(
+                description=settings['description']
+            )
+            self.standings_sidebar_last_updated = current_time
+            print "updated standings sidebar at " + str(self.standings_sidebar_last_updated)
 
     def generate_standings(self):
         """ formats markup with division team standings
