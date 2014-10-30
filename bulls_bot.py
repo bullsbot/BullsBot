@@ -958,8 +958,8 @@ class bulls_bot(object):
     def generate_standings(self):
         """ formats markup with division team standings
         """
-        sorted_team_standings = sorted(self.get_standings().items(), key=lambda t: float(t[1]['percent']))
-        sorted_team_standings.reverse()
+        # sort by division rank
+        sorted_team_standings = sorted(self.get_standings().items(), key=lambda t: float(t[1]['division_rank']))
         division = self.team_dict[self.teamName]['division']
         standings_string = ""
         for med_name, team_standings in sorted_team_standings:
