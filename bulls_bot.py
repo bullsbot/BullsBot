@@ -93,7 +93,7 @@ class bulls_bot(object):
         self.event_fmt = "[{event_title}]({event_hashtag}) [{month_day}](#DESC)\n"
         self.past_game_fmt =    "[{game_status}](#STATUS) [{away_team_short}](#TEAM) [{away_score}](#SCORE) [{home_team_short}](#TEAM2) [{home_score}](#SCORE2) [{month_day}](#DATE)\n"
         self.current_game_fmt = "[{game_status}](#STATUS) [{away_team_short}](#TEAM) [{away_score}](#SCORE) [{home_team_short}](#TEAM2) [{home_score}](#SCORE2) [{month_day}](#DATE)\n"
-        self.future_game_fmt =  "[{game_time_local}](#STATUS) [{away_team_short}](#TEAM) [](#SCORE) [{home_team_short}](#TEAM2) [](#SCORE2) [{month_day}](#DATE)\n"
+        self.future_game_fmt =  "[{month_day}](#STATUS) [{away_team_short}](#TEAM) [](#SCORE) [{home_team_short}](#TEAM2) [](#SCORE2) [{game_time_local}](#DATE)\n"
         self.game_thread_link_fmt = "[]({link})"
         self.event_markdown_pre = " - "  # goes before each game/event
         self.event_markdown_post = ""    # goes after each game/event
