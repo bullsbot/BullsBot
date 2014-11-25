@@ -73,6 +73,7 @@ class bulls_bot(object):
         self.sidebar_standings_row_fmt = "[](#{short_name}){med_name}|{wins}|{losses}|{percent}\n"
 
         # gameday info
+        self.bot_timezone = pytz.timezone('America/Los_Angeles')
         self.game_day_info = None
         self.last_game_day_check = datetime.min
         # game thread links (key is date, value is game_thread_links object)
@@ -85,7 +86,7 @@ class bulls_bot(object):
         self.game_thread_create_time = 60 * 60         # how many seconds before tip-off should game threads be created
         # schedule template
         self.max_events_to_display = 14
-        self.prior_events_to_display = 4
+        self.prior_events_to_display = 2
         self.min_events_to_display = 10
         self.sidebar_schedule_start_string = "* **Schedule**"
         self.sidebar_schedule_end_string = "\n\n"
@@ -181,14 +182,13 @@ class bulls_bot(object):
 
     def load_gameday_info(self):
         # todo: create gameday_info class
-        local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
-        current_local_datetime = datetime.now(local_timezone)
+        current_local_datetime = datetime.now(self.bot_timezone)
         current_local_date = current_local_datetime.date()
         cal = self.get_cal()
         is_game_day = False
         for event in cal.vevent_list:
             if self.is_game_vevent(event):
-                local_game_time = event.dtstart.value.astimezone(local_timezone)
+                local_game_time = event.dtstart.value.astimezone(self.bot_timezone)
                 if local_game_time.date() == current_local_date:
                     is_game_day = True
                     self.game_day_info = {
@@ -227,7 +227,7 @@ class bulls_bot(object):
                 self.game_day_info['current_status'] = 'PRE'
             else:
                 # otherwise, check game status
-                games = nba_game_scraper.get_games(current_local_datetime, 30)   # thirty second cache
+                games = nba_game_scraper.get_games(datetime.now(self.bot_timezone), 30)   # thirty second cache
                 live_game_on = False
                 game_found = False
                 # key is like CHI_SAS, value is a dict with game data
@@ -258,8 +258,7 @@ class bulls_bot(object):
 
     def is_today_a_game_day(self):
         is_game_day = False
-        local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
-        current_local_date = datetime.now(local_timezone).date()
+        current_local_date = datetime.now(self.bot_timezone).date()
         if self.game_day_info is not None:
             if self.last_game_day_check.date() == current_local_date:
                 is_game_day = True
@@ -476,13 +475,12 @@ class bulls_bot(object):
         returns the amount of time to sleep until updating again (in seconds)
         """
         # by default next update time should be tomorrow
-        local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
-        now = datetime.now(local_timezone)
-        tomorrow = datetime.now(local_timezone).date() + timedelta(1)
-        five_am = datetime.combine(tomorrow, dttime(5, 0, 0)).replace(tzinfo=local_timezone)
+        now = datetime.now(self.bot_timezone)
+        tomorrow = datetime.now(self.bot_timezone).date() + timedelta(1)
+        five_am = datetime.combine(tomorrow, dttime(2, 0, 0)).replace(tzinfo=self.bot_timezone)
         current_update_freq = (five_am - now).total_seconds()
         if self.is_today_a_game_day():
-            todays_game_thread_links = self.get_game_thread_links_for_date(datetime.now(local_timezone))
+            todays_game_thread_links = self.get_game_thread_links_for_date(now)
             if self.is_the_game_on_now():
                 # if the game is on now, update at the game time update frequency
                 current_update_freq = self.game_time_upate_freq
@@ -515,7 +513,7 @@ class bulls_bot(object):
         #     print vevent.dtstart.value
         events = sorted(cal.vevent_list, key=lambda vevent: vevent.dtstart.value if (type(vevent.dtstart.value) is datetime) else datetime(vevent.dtstart.value.year, vevent.dtstart.value.month, vevent.dtstart.value.day, tzinfo=cal_timezone), reverse=True)
         # events = sorted(cal.vevent_list, key=attrgetter('dtstart.value'), reverse=True)
-        current_local_date = datetime.now(local_timezone).date()
+        current_local_date = datetime.now(self.bot_timezone).date()
         prior_events = 0
         total_events = 0
         for event in events:
@@ -570,8 +568,7 @@ class bulls_bot(object):
         """
         key_date_format = "%Y%m%d"
         if gameDate is None:
-            local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
-            gameDate = datetime.now(local_timezone)
+            gameDate = datetime.now(self.bot_timezone)
         key = gameDate.strftime(key_date_format)
         self.game_thread_links[key] = gtl
 
@@ -615,7 +612,7 @@ class bulls_bot(object):
         elif not isinstance(game_pre_post, list):
             game_pre_post = [game_pre_post]
         local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
-        date = date.astimezone(local_timezone)
+        date = date.astimezone(self.bot_timezone)
         key_date_format = "%Y%m%d"
         key = date.strftime(key_date_format)
         game_thread = None
@@ -627,7 +624,7 @@ class bulls_bot(object):
             if game_thread is None or getattr(game_thread, key) is None:
                 missing_game_thread_flairs[key] = self.game_thread_flairs[key]
 
-        if date.date() <= datetime.now(local_timezone).date() \
+        if date.date() <= datetime.now(self.bot_timezone).date() \
             and len(missing_game_thread_flairs) > 0 \
                 and self.authenticate_reddit():
             # couldn't find link, let's find them
@@ -658,8 +655,7 @@ class bulls_bot(object):
         """
         returns true if it's a game-day and there is no game_thread.pre link.
         """
-        local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
-        game_thread_links = self.get_game_thread_links_for_date(datetime.now(local_timezone), game_pre_post='post')
+        game_thread_links = self.get_game_thread_links_for_date(datetime.now(self.bot_timezone), game_pre_post='post')
         return self.is_today_a_game_day() and self.is_game_over() \
             and (game_thread_links is None
                  or (game_thread_links is not None and game_thread_links.post is None))
@@ -668,8 +664,7 @@ class bulls_bot(object):
         """
         returns true if it's a game-day and there is no game_thread.pre link.
         """
-        local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
-        game_thread_links = self.get_game_thread_links_for_date(datetime.now(local_timezone), game_pre_post='pre')
+        game_thread_links = self.get_game_thread_links_for_date(datetime.now(self.bot_timezone), game_pre_post='pre')
         return self.is_today_a_game_day() \
             and (game_thread_links is None
                  or (game_thread_links is not None and game_thread_links.pre is None))
@@ -679,8 +674,7 @@ class bulls_bot(object):
         returns true if it's a game-day and the game hasn't started and it's within an hour to game-time
         and there is no game_thread.game link.
         """
-        local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
-        game_thread_links = self.get_game_thread_links_for_date(datetime.now(local_timezone), game_pre_post='game')
+        game_thread_links = self.get_game_thread_links_for_date(datetime.now(self.bot_timezone), game_pre_post='game')
         return self.is_today_a_game_day() \
             and -1 < self.get_seconds_till_game() < self.game_thread_create_time \
             and (game_thread_links is None
@@ -693,8 +687,7 @@ class bulls_bot(object):
         success = False
         if self.authenticate_reddit():
             flair = self.game_thread_flairs[game_pre_post]
-            local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
-            todays_game_thread_links = self.get_game_thread_links_for_date(datetime.now(local_timezone),
+            todays_game_thread_links = self.get_game_thread_links_for_date(datetime.now(self.bot_timezone),
                                                                            game_pre_post=game_pre_post)
             if game_pre_post == 'game':
                 link = None
@@ -765,13 +758,12 @@ class bulls_bot(object):
 
         else:
             # if it is a game day, check to see if we need to create a game thread
-            local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
             game_is_live = self.is_the_game_on_now()
             need_to_create_postgame_thread = self.need_to_create_postgame_thread()
             need_to_create_pregame_thread = self.need_to_create_pregame_thread()
             need_to_create_game_thread = self.need_to_create_game_thread()
             need_to_update_game_thread = \
-                self.get_game_thread_links_for_date(datetime.now(local_timezone), game_pre_post='game') is not None \
+                self.get_game_thread_links_for_date(datetime.now(self.bot_timezone), game_pre_post='game') is not None \
                 and (game_is_live or self.game_day_info['current_status'] == 'LIVE'
                      or self.game_day_info['current_status'] == 'LIVEOT')
 
@@ -801,7 +793,7 @@ class bulls_bot(object):
                 home_team_standings = self.get_standings()[home_team_info['med_name']]
                 away_team_info = self.team_dict_short_key[game_data['away_team'].upper()]
                 away_team_standings = self.get_standings()[away_team_info['med_name']]
-                broadcast_info = nba_game_scraper.scrape_broadcast_info(datetime.now(local_timezone),
+                broadcast_info = nba_game_scraper.scrape_broadcast_info(datetime.now(self.bot_timezone),
                                                                         game_data['home_team'].upper(),
                                                                         game_data['away_team'].upper())
                 broadcast_strings = []
@@ -932,7 +924,6 @@ class bulls_bot(object):
     def update_standings_sidebar(self):
         """ Updates subreddit sidebar with standings table once a day and after a game
         """
-        current_time = datetime.now(pytz.timezone(self.team_dict[self.teamName]['timezone']))
         standings_table = self.generate_standings()
         if self.authenticate_reddit():
             print "fetching subreddit settings"
@@ -952,7 +943,7 @@ class bulls_bot(object):
             self.reddit.get_subreddit(self.subreddit).update_settings(
                 description=settings['description']
             )
-            self.standings_sidebar_last_updated = current_time
+            self.standings_sidebar_last_updated = datetime.now(self.bot_timezone)
             print "updated standings sidebar at " + str(self.standings_sidebar_last_updated)
 
     def generate_standings(self):
@@ -983,7 +974,7 @@ def schedule_schedule_updates():
             try:
                 bot.load_standings()                                  # update standings
             except Exception:
-                print "unable to load standings at " + str(datetime.now())
+                print "unable to load standings at " + str(datetime.now(bot.bot_timezone))
                 pass
             bot.update_standings_sidebar()                        # update standings in sidebar if necessary
             bot.generate_or_update_game_thread_if_necessary()     # update or create game threads if necessary
