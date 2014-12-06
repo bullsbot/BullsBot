@@ -870,11 +870,11 @@ class bulls_bot(object):
                             their_standings = home_team_standings
                             our_standings = away_team_standings
                         beat_or_lose = ' defeat the '
-                        our_win_loss = our_standings['wins'] + '-' + our_standings['losses']
-                        their_win_loss = their_standings['wins'] + '-' + their_standings['losses']
+                        our_win_loss = str(1 + int(our_standings['wins'])) + '-' + our_standings['losses']
+                        their_win_loss = their_standings['wins'] + '-' + str(1 + int(their_standings['losses']))
                         if int(our_score) < int(their_score):
-                            our_win_loss = our_standings['wins'] + '-' + our_standings['losses']
-                            their_win_loss = their_standings['wins'] + '-' + their_standings['wins']
+                            our_win_loss = our_standings['wins'] + '-' + str(1 + int(our_standings['losses']))
+                            their_win_loss = str(1 + int(their_standings['wins'])) + '-' + their_standings['wins']
                             beat_or_lose = ' fall to the '
                         # format the title with game data
                         postgame_thread_title = self.post_game_thread_title_fmt.format(
@@ -976,8 +976,8 @@ def schedule_schedule_updates():
             except Exception:
                 print "unable to load standings at " + str(datetime.now(bot.bot_timezone))
                 pass
-            bot.update_standings_sidebar()                        # update standings in sidebar if necessary
             bot.generate_or_update_game_thread_if_necessary()     # update or create game threads if necessary
+            bot.update_standings_sidebar()                        # update standings in sidebar if necessary
             schedule = bot.generate_default_schedule()            # get schedule
             bot.update_schedule(schedule)                         # update schedule in sidebar
             update_freq = bot.get_current_update_freq()           # figure out when to update again
