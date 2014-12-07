@@ -29,6 +29,10 @@ def scrape_standings():
             wins=team.findParent().findNextSibling().string,
             losses=team.findParent().findNextSibling().findNextSibling().string,
             percent=team.findParent().findNextSibling().findNextSibling().findNextSibling().string,
+            streak=team.findParent().findNextSibling().findNextSibling().findNextSibling()
+                        .findNextSibling().findNextSibling().findNextSibling()
+                        .findNextSibling().findNextSibling().findNextSibling()
+                        .findNextSibling().findNextSibling().findNextSibling().string,
             division_rank=rank
         )
         rank += 1

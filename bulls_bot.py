@@ -648,7 +648,10 @@ class bulls_bot(object):
         formatted_string = ''
         game_thread_links = self.get_game_thread_links_for_date(date, game_pre_post='game')
         if game_thread_links is not None and game_thread_links.game is not None:
-            formatted_string = self.game_thread_link_fmt.format(link=game_thread_links.game)
+            long_link = game_thread_links.game
+            redditcom = "reddit.com/"
+            short_link = "/" + long_link.split(redditcom)[1].split("/")[3]
+            formatted_string = self.game_thread_link_fmt.format(link=short_link)
         return formatted_string
 
     def need_to_create_postgame_thread(self):
@@ -872,13 +875,18 @@ class bulls_bot(object):
                         beat_or_lose = ' defeat the '
                         our_win_loss = str(1 + int(our_standings['wins'])) + '-' + our_standings['losses']
                         their_win_loss = their_standings['wins'] + '-' + str(1 + int(their_standings['losses']))
+                        sub_team_name = self.teamName
                         if int(our_score) < int(their_score):
                             our_win_loss = our_standings['wins'] + '-' + str(1 + int(our_standings['losses']))
                             their_win_loss = str(1 + int(their_standings['wins'])) + '-' + their_standings['wins']
                             beat_or_lose = ' fall to the '
+                        else:
+                            # if we win and they had a streak going, we're streakbreakers!
+                            if int(our_standings['streak']) >= 5:
+                                sub_team_name = self.teamName + ' Streakbreakers'
                         # format the title with game data
                         postgame_thread_title = self.post_game_thread_title_fmt.format(
-                            sub_team_name=self.teamName,
+                            sub_team_name=sub_team_name,
                             sub_team_win_loss=our_win_loss,
                             non_sub_team_name=other_team,
                             non_sub_team_win_loss=their_win_loss,
