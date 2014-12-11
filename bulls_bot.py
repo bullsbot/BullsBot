@@ -882,7 +882,9 @@ class bulls_bot(object):
                             beat_or_lose = ' fall to the '
                         else:
                             # if we win and they had a streak going, we're streakbreakers!
-                            if int(our_standings['streak']) >= 5:
+                            streakWinLoss = our_standings['streak'].split(' ')[0]
+                            streakCount = int(our_standings['streak'].split(' ')[1])
+                            if streakCount >= 5 and streakWinLoss == 'Win':
                                 sub_team_name = self.teamName + ' Streakbreakers'
                         # format the title with game data
                         postgame_thread_title = self.post_game_thread_title_fmt.format(
