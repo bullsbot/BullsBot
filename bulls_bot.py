@@ -54,11 +54,14 @@ class bulls_bot(object):
             self.calendarURL = "https://www.google.com/calendar/ical/chicagobullsbot%40gmail.com/private-48b0043bc03da315706a2ca595c0e63b/basic.ics"
             # bucks
             # self.calendarURL = "https://www.google.com/calendar/ical/017inmrbgdrss70gjir461mnno%40group.calendar.google.com/private-ee501ceb1a29a9ab3a52d64418e63963/basic.ics"
+            # knicks
+            # self.calendarURL = "https://www.google.com/calendar/ical/3d3q2uon1smf79hl7ndjn84s7c%40group.calendar.google.com/private-5652215b944e1e024b7eeb31121774fc/basic.ics"
 
         # team
         if team_name is None:
             self.teamName = "Chicago Bulls"
             # self.teamName = "Milwaukee Bucks"
+            # self.teamName = "New York Knicks"
         else:
             self.teamName = team_name
         # team data
@@ -391,7 +394,7 @@ class bulls_bot(object):
         # Get Summary
         print 'Summary: ', game.summary.valueRepr()
         print 'Location: ', game.location.valueRepr()
-        home_and_away_teams = game.summary.valueRepr().split(" at ")
+        home_and_away_teams = game.summary.valueRepr().split(" @ ")
         away_team = home_and_away_teams[0]
         away_team_short = self.team_dict[away_team]['short_name']
         home_team = home_and_away_teams[1]
@@ -791,7 +794,7 @@ class bulls_bot(object):
                 for key, value in games.iteritems():
                     if key.find(self.team_dict[self.teamName]['short_name']) is not -1:
                         game_data = value
-
+                # what if game is not in list? nba.com will periodically remove a game for some reason
                 home_team_info = self.team_dict_short_key[game_data['home_team'].upper()]
                 home_team_standings = self.get_standings()[home_team_info['med_name']]
                 away_team_info = self.team_dict_short_key[game_data['away_team'].upper()]
