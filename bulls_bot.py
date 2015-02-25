@@ -56,12 +56,14 @@ class bulls_bot(object):
             # self.calendarURL = "https://www.google.com/calendar/ical/017inmrbgdrss70gjir461mnno%40group.calendar.google.com/private-ee501ceb1a29a9ab3a52d64418e63963/basic.ics"
             # knicks
             # self.calendarURL = "https://www.google.com/calendar/ical/3d3q2uon1smf79hl7ndjn84s7c%40group.calendar.google.com/private-5652215b944e1e024b7eeb31121774fc/basic.ics"
-
+            # clippers
+            # self.calendarURL = "https://www.google.com/calendar/ical/q4b1cormv9ikndag34rf73oug8%40group.calendar.google.com/private-2603eb76cd456fdbd69684f4418101d6/basic.ics"
         # team
         if team_name is None:
             self.teamName = "Chicago Bulls"
             # self.teamName = "Milwaukee Bucks"
             # self.teamName = "New York Knicks"
+            # self.teamName = "Los Angeles Clippers"
         else:
             self.teamName = team_name
         # team data
@@ -395,6 +397,9 @@ class bulls_bot(object):
         print 'Summary: ', game.summary.valueRepr()
         print 'Location: ', game.location.valueRepr()
         home_and_away_teams = game.summary.valueRepr().split(" @ ")
+        if len(home_and_away_teams) == 1:
+            # older espn calendars use 'at' instead of '@'
+            home_and_away_teams = game.summary.valueRepr().split(" at ")
         away_team = home_and_away_teams[0]
         away_team_short = self.team_dict[away_team]['short_name']
         home_team = home_and_away_teams[1]
@@ -998,15 +1003,15 @@ def schedule_schedule_updates():
         except KeyboardInterrupt:
             print "keyboard interrupt. Stopping schedule updates"
             raise
-        except BaseException, e:
-            consecutive_error_count += 1
-            print e
-            print "an error occurred during schedule creation " + str(consecutive_error_count) + " consecutive errors"
-            update_freq = 60    # try again in one minutes
-            if consecutive_error_count > 5:
-                print "too many consecutive errors. exiting."
-                run_updates = False
-                update_freq = 0
+        # except BaseException, e:
+        #     consecutive_error_count += 1
+        #     print e
+        #     print "an error occurred during schedule creation " + str(consecutive_error_count) + " consecutive errors"
+        #     update_freq = 60    # try again in one minutes
+        #     if consecutive_error_count > 5:
+        #         print "too many consecutive errors. exiting."
+        #         run_updates = False
+        #         update_freq = 0
         print "sleeping for " + str(update_freq/60.0) + " minutes ... ... ..."
         time.sleep(update_freq)
 
