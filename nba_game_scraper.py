@@ -1,8 +1,10 @@
+import logging
 import time as time_
 import urllib2
 from bs4 import BeautifulSoup
 import socket
 
+logger = logging.getLogger('')
 
 def get_games(date, time_till_stale=10800):
     """
@@ -35,13 +37,14 @@ def fetch_html(url):
     except urllib2.URLError, e:
         if isinstance(e.reason, socket.timeout):
             # try once again
-            print "timeout, trying again"
+            logger.warning("timeout, trying again")
             html = urllib2.urlopen(url, timeout=3).read()
         else:
+            logger.error(e)
             raise
     except socket.timeout:
         # For Python 2.7
-        print "timeout, trying again"
+        logger.warning("timeout, trying again")
         html = urllib2.urlopen(url, timeout=3).read()
     return html
 
@@ -50,18 +53,18 @@ def fetch_nba_games_html(date):
         # todo: try-catch if more timeouts?
         date_format = "%Y%m%d"
         scores_url = "http://www.nba.com/gameline/"
-        print "Fetching " + scores_url + date.strftime(date_format)
+        logger.info("Fetching " + scores_url + date.strftime(date_format))
         return fetch_html(scores_url + date.strftime(date_format))
 
 
 def parse_nba_games_html(games_html):
-        print "Begin Scrape"
+        logger.debug("Begin Scrape")
         soup = BeautifulSoup(games_html)
         game_containers = soup.select('.GameLine')
         # create dict
         games = {}
         for i, game_container in enumerate(game_containers):
-            print "Scraping game ", str(i)
+            logger.debug("Scraping game " + str(i))
             game = {}
             # get container id
             container_id = game_container['id']
@@ -88,7 +91,7 @@ def parse_nba_games_html(games_html):
                 game['home_score'] = soup.select('#'+container_id + ' div[class$="TeamHm"] [class*="TeamNum"]')[0].string
             # add to list of games
             games[game['away_team'] + '_' + game['home_team']] = game
-        print "Scrape complete."
+        logger.info("Scrape complete. {} games found.".format(len(games)))
         return games
 
 
@@ -127,4 +130,4 @@ if __name__ == "__main__":
         if len(channels) > 0:
             broadcast_strings.append(key.capitalize() + ": **" + "** ~~/~~ **".join(channels) + "**")
     broadcast = "  ~~/~~  ".join(broadcast_strings)
-    print broadcast
+    logger.info(broadcast)

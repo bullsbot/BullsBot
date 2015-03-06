@@ -1,23 +1,27 @@
+import logging
 import urllib2
 from bs4 import BeautifulSoup
 import socket
 
+logger = logging.getLogger('')
+
 
 def scrape_standings():
-    print "begin standings scrape"
+    logger.info("begin standings scrape")
     url = "http://espn.go.com/nba/standings/_/sort/gamesBehind/group/3"
     try:
         standings_html = urllib2.urlopen(url, timeout=2).read()
     except urllib2.URLError, e:
         if isinstance(e.reason, socket.timeout):
             # try once again
-            print "timeout, trying again"
+            logger.warning("timeout, trying again")
             standings_html = urllib2.urlopen(url, timeout=3).read()
         else:
+            logger.error(e)
             raise
     except socket.timeout:
         # For Python 2.7
-        print "timeout, trying again"
+        logger.warning("timeout, trying again")
         standings_html = urllib2.urlopen(url, timeout=3).read()
 
     soup = BeautifulSoup(standings_html)
@@ -36,7 +40,7 @@ def scrape_standings():
             division_rank=rank
         )
         rank += 1
-    print "standings scrape complete"
+    logger.info("standings scrape complete")
     return standings
 
 
