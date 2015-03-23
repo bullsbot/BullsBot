@@ -11,17 +11,19 @@ import praw
 from random import randrange
 import nba_game_scraper
 import nba_standings_scraper
+from standings_formatter import StandingsFormatter
 
+log_date_fmt = '%y-%m-%d %X %Z'
 logging.basicConfig(level=logging.DEBUG,
-                             format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
-                             datefmt='%m-%d %H:%M',
-                             filename='bullsbot.log',
-                             filemode='w')
+                    format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+                    datefmt=log_date_fmt,
+                    filename='bullsbot.log',
+                    filemode='a')
 # define a Handler which writes INFO messages or higher to the sys.stderr
 console = logging.StreamHandler()
-console.setLevel(logging.INFO)
+console.setLevel(logging.WARNING)
 # set a format for console use
-formatter = logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
+formatter = logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s', datefmt=log_date_fmt)
 # tell the handler to use this format
 console.setFormatter(formatter)
 # add the handler to the root logger
@@ -42,6 +44,7 @@ class bulls_bot(object):
     """
 
     def __init__(self, username=None, password=None, subreddit=None, team_name=None):
+        self.logger = logging.getLogger('BB')
         # username
         if username is None:
             self.username = raw_input('Reddit Username: ')
@@ -65,7 +68,7 @@ class bulls_bot(object):
         self.calendar_no_date_flag = "#NODATE"
         self.calendarURL = raw_input('Calendar URL (leave empty to use default): ')
         if self.calendarURL is None or self.calendarURL.strip() == '':
-            logging.info('using default calendar url')
+            self.logger.info('using default calendar url')
             # bulls
             self.calendarURL = "https://www.google.com/calendar/ical/chicagobullsbot%40gmail.com/private-48b0043bc03da315706a2ca595c0e63b/basic.ics"
             # bucks
@@ -89,9 +92,14 @@ class bulls_bot(object):
         # standings
         self.latest_standings = None
         self.standings_sidebar_last_updated = None
+        self.standings_grouping = "division"
         self.sidebar_standings_start_string = "####**Standings**\nTeam|W|L|PCT\n:--|:--:|:--:|:--:\n"
         self.sidebar_standings_end_string = "\n\n"
-        self.sidebar_standings_row_fmt = "[](#{short_name}){med_name}|{wins}|{losses}|{percent}\n"
+        # self.sidebar_standings_row_fmt = "[](#{short_name}){med_name}|{wins}|{losses}|{percent}\n"
+        formatter = StandingsFormatter(self.team_dict, self.team_dict_med_key, self.teamName,
+            division_standings_format="[](#{short_name}){med_name}|{wins}|{losses}|{percent}\n"
+        )
+        self.standings_formatter = formatter.get_formatter('division')
 
         # gameday info
         self.bot_timezone = pytz.timezone('America/Los_Angeles')
@@ -136,7 +144,7 @@ class bulls_bot(object):
         )
         # check that the username and password work, if not die now!
         if not self.authenticate_reddit():
-            logging.info("Could not login to reddit with " + self.username)
+            self.logger.info("Could not login to reddit with " + self.username)
             raise praw.errors.LoginRequired("bulls_bot")
 
     def authenticate_reddit(self):
@@ -409,8 +417,8 @@ class bulls_bot(object):
         month_day = chiDateTime.strftime(date_format).upper().replace(" 0", " ")
         game_time_local = chiDateTime.strftime(time_format).lstrip("0")
         # Get Summary
-        logging.debug('Summary: ' + game.summary.valueRepr())
-        logging.debug('Location: ' + game.location.valueRepr())
+        self.logger.debug('Summary: ' + game.summary.valueRepr())
+        self.logger.debug('Location: ' + game.location.valueRepr())
         home_and_away_teams = game.summary.valueRepr().split(" @ ")
         if len(home_and_away_teams) == 1:
             # older espn calendars use 'at' instead of '@'
@@ -428,7 +436,7 @@ class bulls_bot(object):
                 game_data = games_data[away_team_short + '_' + home_team_short]
             except KeyError:
                 # this happens when we have a game in the game calendar but nba.com doesn't have it listed
-                logging.error('could not find game data for ' + away_team_short + '_' + home_team_short + ' on ' + month_day)
+                self.logger.error('could not find game data for ' + away_team_short + '_' + home_team_short + ' on ' + month_day)
                 raise
             # if game start time has passed and we're in the middle of the game
             #  and the game is not listed as live or final or postponed, raise error
@@ -525,7 +533,7 @@ class bulls_bot(object):
         return max(current_update_freq, 30)
 
     def generate_default_schedule(self):
-        logging.info("generating default schedule")
+        self.logger.info("generating default schedule")
         begin_date = None
         # find date to begin schedule with
         cal = self.get_cal()
@@ -558,17 +566,17 @@ class bulls_bot(object):
         return self.schedule_maker(startDate=begin_date, max_events=self.max_events_to_display)
 
     def update_schedule(self, schedule=None):
-        logging.info("begin updating schedule ... ")
+        self.logger.info("begin updating schedule ... ")
         if schedule is None:
             schedule = self.generate_default_schedule()
         # make sure we're logged in (and if not, log in)
         if self.authenticate_reddit():
             #Get the sidebar
             # settings=r.get_settings(self.team_dict[self.teamName]['sub'])
-            logging.info("fetching subreddit settings")
+            self.logger.info("fetching subreddit settings")
             settings = self.reddit.get_settings(self.subreddit)
             description_markup = settings['description']
-            logging.info("updating subreddit settings with schedule")
+            self.logger.info("updating subreddit settings with schedule")
             before_sched_start = description_markup.split(self.sidebar_schedule_start_string, 1)[0]
             after_sched_start = description_markup.split(self.sidebar_schedule_start_string, 1)[1]
             after_sched_end = after_sched_start.split(self.sidebar_schedule_end_string, 1)[1]
@@ -579,9 +587,9 @@ class bulls_bot(object):
             formated_time = datetime.now(local_timezone).strftime("%I:%M %p")
             responses = ["Thibs would be proud of this hustle! Updated that schedy sched for u at around ", "Schedy sched updated ", "1000010010101000101001 at ", "Ok, just updated at ", "What it is, just updated at ", "Boom, did it at ", "Puttin in work sukka! Just updated that schedule at ", "Yoooooooooo.... did it again at ", "Knock knock. (Who's there?) BULLS BOT PUTTIN IN WORK! ... at ", " Yaawwn, got anything else for me to do? ... just updated again at ", "Guess what I just did at ", "Beep Boop Bop Beep Booop at "]
             response = responses[randrange(len(responses))]
-            logging.info('[In /r/' + self.subreddit + '] ' + response + formated_time)
+            self.logger.info('[In /r/' + self.subreddit + '] ' + response + formated_time)
         else:
-            logging.error("could not authenticate through reddit")
+            self.logger.error("could not authenticate through reddit")
 
     def add_game_thread_links(self, gtl, gameDate=None):
         """
@@ -616,7 +624,7 @@ class bulls_bot(object):
                     # if it's flair matches one of our game thread flairs
                     if getattr(gtl, game_pre_post) is None:
                         # set it
-                        logging.debug('found ' + game_pre_post + ' game thread for ' +
+                        self.logger.debug('found ' + game_pre_post + ' game thread for ' +
                                       str(datetime.fromtimestamp(post.created_utc, local_timezone).date()))
                         setattr(gtl, game_pre_post, post.permalink)
 
@@ -708,6 +716,7 @@ class bulls_bot(object):
         """
         checks for the existence of a game thread submission, if found, updates the text, otherwise submits new one
         """
+        self.logger.debug('post_new_or_update_game_thread')
         success = False
         if self.authenticate_reddit():
             flair = self.game_thread_flairs[game_pre_post]
@@ -720,6 +729,7 @@ class bulls_bot(object):
 
                 if link is not None:
                     # update thread
+                    self.logger.debug('updating thread')
                     updated_game_thread_markup = game_thread_markup.split(self.current_game_thread_split_text)[0]
                     game_thread_submission = self.reddit.get_submission(url=link)
                     current_game_thread_post_text = \
@@ -731,6 +741,7 @@ class bulls_bot(object):
                     success = True
                 else:
                     # submit new game thread
+                    self.logger.debug('submitting new game thread')
                     game_thread_submission = self.reddit.get_subreddit(self.subreddit).submit(
                         text=game_thread_markup,
                         title=game_thread_title
@@ -751,6 +762,7 @@ class bulls_bot(object):
                     success = True
             else:
                 # submit new pre or post thread
+                self.logger.debug('submitting new pre or post thread (' + game_pre_post + ')')
                 game_thread_submission = self.reddit.get_subreddit(self.subreddit).submit(
                     text=game_thread_markup,
                     title=game_thread_title
@@ -771,13 +783,14 @@ class bulls_bot(object):
         """
         Creates or updates game threads as necessary.
         """
+        self.logger.debug('generate_or_update_game_thread_if_necessary')
         if not self.is_today_a_game_day():
             if self.authenticate_reddit():
                 subreddit = self.reddit.get_subreddit(self.subreddit)
                 submission = subreddit.get_hot().next()
                 if submission.stickied and submission.link_flair_css_class in self.game_thread_flairs.values():
                     # if submission is stickied with one of our game thread flairs, un-sticky it
-                    logging.info("unstickying last " + submission.link_flair_css_class)
+                    self.logger.info("unstickying last " + submission.link_flair_css_class)
                     submission.unsticky()
 
         else:
@@ -828,6 +841,7 @@ class bulls_bot(object):
 
                 if need_to_create_pregame_thread:
                     # create pre-game thread
+                    self.logger.info('creating pre-game thread')
                     pregame_thread_markup = self.pre_game_thread_fmt.format(
                         home_team_short=game_data['home_team'].upper(),
                         home_team_name=home_team_info['long_name'],
@@ -868,6 +882,7 @@ class bulls_bot(object):
 
                     if need_to_create_postgame_thread:
                         # create post-game thread
+                        self.logger.info('creating post-game thread')
                         # format the template with game data
                         postgame_thread_markup = self.post_game_thread_fmt.format(
                             home_team_short=game_data['home_team'].upper(),
@@ -922,6 +937,7 @@ class bulls_bot(object):
 
                     else:
                         # create game thread
+                        self.logger.info('creating game thread')
                         # format the template with game data
                         game_thread_markup = self.current_game_thread_fmt.format(
                             home_team_short=game_data['home_team'].upper(),
@@ -957,10 +973,10 @@ class bulls_bot(object):
         """
         standings_table = self.generate_standings()
         if self.authenticate_reddit():
-            logging.info("fetching subreddit settings")
+            self.logger.info("fetching subreddit settings")
             settings = self.reddit.get_settings(self.subreddit)
             description_markup = settings['description']
-            logging.info("updating subreddit settings with standings")
+            self.logger.info("updating subreddit settings with standings")
             before_standings_start = description_markup.split(self.sidebar_standings_start_string, 1)[0]
             after_standings_start = description_markup.split(self.sidebar_standings_start_string, 1)[1]
             after_standings_end = after_standings_start.split(self.sidebar_standings_end_string, 1)[1]
@@ -975,25 +991,13 @@ class bulls_bot(object):
                 description=settings['description']
             )
             self.standings_sidebar_last_updated = datetime.now(self.bot_timezone)
-            logging.info("updated standings sidebar at " + str(self.standings_sidebar_last_updated))
+            self.logger.info("updated standings sidebar at " + str(self.standings_sidebar_last_updated))
 
     def generate_standings(self):
         """ formats markup with division team standings
         """
         # sort by division rank
-        sorted_team_standings = sorted(self.get_standings().items(), key=lambda t: float(t[1]['division_rank']))
-        division = self.team_dict[self.teamName]['division']
-        standings_string = ""
-        for med_name, team_standings in sorted_team_standings:
-            if self.team_dict_med_key[med_name]['division'] == division:
-                standings_string += self.sidebar_standings_row_fmt.format(
-                    short_name=self.team_dict_med_key[med_name]['short_name'],
-                    med_name=med_name,
-                    wins=team_standings['wins'],
-                    losses=team_standings['losses'],
-                    percent=team_standings['percent']
-                )
-        return standings_string.rstrip("\n")
+        return self.standings_formatter(self.get_standings())
 
 
 def schedule_schedule_updates():
@@ -1002,11 +1006,11 @@ def schedule_schedule_updates():
     consecutive_error_count = 0
     while run_updates:
         try:
-            try:
-                bot.load_standings()                                  # update standings
-            except Exception:
-                logging.error("unable to load standings at " + str(datetime.now(bot.bot_timezone)))
-                pass
+            # try:
+            bot.load_standings()                                  # update standings
+            # except Exception:
+            #     logging.error("unable to load standings at " + str(datetime.now(bot.bot_timezone)))
+            #     pass
             bot.generate_or_update_game_thread_if_necessary()     # update or create game threads if necessary
             bot.update_standings_sidebar()                        # update standings in sidebar if necessary
             schedule = bot.generate_default_schedule()            # get schedule
@@ -1016,16 +1020,16 @@ def schedule_schedule_updates():
         except KeyboardInterrupt:
             logging.error("keyboard interrupt. Stopping schedule updates")
             raise
-        except BaseException, e:
-            consecutive_error_count += 1
-            logging.error(e)
-            logging.warning("an error occurred during schedule creation " + str(consecutive_error_count) +
-                            " consecutive errors")
-            update_freq = 60    # try again in one minutes
-            if consecutive_error_count > 5:
-                logging.warning("too many consecutive errors. exiting.")
-                run_updates = False
-                update_freq = 0
+        # except BaseException, e:
+        #     consecutive_error_count += 1
+        #     logging.error(e)
+        #     logging.warning("an error occurred during schedule creation " + str(consecutive_error_count) +
+        #                     " consecutive errors")
+        #     update_freq = 60    # try again in one minutes
+        #     if consecutive_error_count > 5:
+        #         logging.warning("too many consecutive errors. exiting.")
+        #         run_updates = False
+        #         update_freq = 0
         logging.info("sleeping for " + str(update_freq/60.0) + " minutes ... ... ...")
         time.sleep(update_freq)
 

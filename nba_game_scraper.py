@@ -4,7 +4,7 @@ import urllib2
 from bs4 import BeautifulSoup
 import socket
 
-logger = logging.getLogger('')
+logger = logging.getLogger('NGS')
 
 def get_games(date, time_till_stale=10800):
     """
@@ -64,7 +64,7 @@ def parse_nba_games_html(games_html):
         # create dict
         games = {}
         for i, game_container in enumerate(game_containers):
-            logger.debug("Scraping game " + str(i))
+            # logger.debug("Scraping game " + str(i))
             game = {}
             # get container id
             container_id = game_container['id']
