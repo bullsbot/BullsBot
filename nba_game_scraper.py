@@ -113,7 +113,7 @@ def scrape_broadcast_info(date, home_team_short, away_team_short):
     for row in broadcasts_rows:
         children = list(row.children)
         children.reverse()
-        if len(children) > 3 and children[1].string.strip().lower() in broadcasts:
+        if len(children) > 3 and children[1].string is not None and children[1].string.strip().lower() in broadcasts:
             broadcasts[children[1].string.strip().lower()].append(children[2].string.strip())
 
     return broadcasts

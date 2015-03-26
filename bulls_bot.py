@@ -92,14 +92,15 @@ class bulls_bot(object):
         # standings
         self.latest_standings = None
         self.standings_sidebar_last_updated = None
-        self.standings_grouping = "division"
-        self.sidebar_standings_start_string = "####**Standings**\nTeam|W|L|PCT\n:--|:--:|:--:|:--:\n"
+        self.standings_grouping = "conference"
+        self.sidebar_standings_start_string = "####**Playoffs Seeding**\nWest|W/L|GB|East|W/L|GB\n:--|:--:|:--:|:--|:--:|:--:\n"
         self.sidebar_standings_end_string = "\n\n"
         # self.sidebar_standings_row_fmt = "[](#{short_name}){med_name}|{wins}|{losses}|{percent}\n"
         formatter = StandingsFormatter(self.team_dict, self.team_dict_med_key, self.teamName,
-            division_standings_format="[](#{short_name}){med_name}|{wins}|{losses}|{percent}\n"
+            division_standings_format="[](#{short_name}){med_name}|{wins}|{losses}|{percent}\n",
+            conference_standings_format="*{rank}*[](#{short_name})|{wins}-{losses}|{behind}"
         )
-        self.standings_formatter = formatter.get_formatter('division')
+        self.standings_formatter = formatter.get_formatter(self.standings_grouping)
 
         # gameday info
         self.bot_timezone = pytz.timezone('America/Los_Angeles')
@@ -188,7 +189,8 @@ class bulls_bot(object):
                     'short_name': teamInfo[2].upper(),
                     'sub': teamInfo[3],
                     'timezone': teamInfo[4],
-                    'division': teamInfo[5]
+                    'division': teamInfo[5],
+                    'conference': teamInfo[6]
                 }
                 self.team_dict[teamInfo[0]] = tmp_team_dict
                 self.team_dict_med_key[teamInfo[1]] = tmp_team_dict
@@ -200,7 +202,7 @@ class bulls_bot(object):
         return self.latest_standings
 
     def load_standings(self):
-        tmp_standings = nba_standings_scraper.scrape_standings()
+        tmp_standings = nba_standings_scraper.scrape_standings(group=self.standings_grouping)
         if tmp_standings and tmp_standings is not None:
             self.latest_standings = tmp_standings
 
