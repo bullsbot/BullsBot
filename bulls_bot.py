@@ -1,4 +1,4 @@
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 
 import logging
 from datetime import datetime, timedelta, time as dttime
@@ -9,6 +9,7 @@ import pytz
 import urllib2
 import praw
 from random import randrange
+import settings
 import nba_game_scraper
 import nba_standings_scraper
 from standings_formatter import StandingsFormatter
@@ -33,6 +34,7 @@ logging.getLogger('').addHandler(console)
 class GameThreadLinks(object):
     """ Object containing links to game thread links
     """
+
     def __init__(self, pre=None, game=None, post=None):
         self.pre = pre              # link to pregame thread
         self.game = game            # link to game thread
@@ -43,110 +45,103 @@ class bulls_bot(object):
     """ Reddit bot that handles updating the sidebar and game-threads periodically
     """
 
-    def __init__(self, username=None, password=None, subreddit=None, team_name=None):
+    def __init__(self):
         self.logger = logging.getLogger('BB')
         # username
-        if username is None:
+        if 'username' not in settings.reddit:
             self.username = raw_input('Reddit Username: ')
         else:
-            self.username = username
-        # password
-        if password is None:
-            self.password = getpass.getpass('Reddit Password: ')
-        else:
-            self.password = password
+            self.username = settings.reddit['username']
+            self.logger.info("Reddit Username: {}".format(self.username))
         # sub
-        if subreddit is None:
+        if 'subreddit' not in settings.reddit:
             self.subreddit = raw_input('Subreddit (e.g. chicagobulls, not /r/chicagobulls): ')
         else:
-            self.subreddit = subreddit
+            self.subreddit = settings.reddit['subreddit']
+            self.logger.info("Reddit Subreddit: {}".format(self.subreddit))
+
+        # password
+        self.password = getpass.getpass('Reddit Password: ')
+
         # bot
         self.reddit = None
-        self.userAgent = 'BullsBot/v0.0.1 by ' + self.username
+        self.userAgent = 'BullsBot/v0.0.2 by ' + self.username
 
-        # calendar link(s)
-        self.calendar_no_date_flag = "#NODATE"
-        self.calendarURL = raw_input('Calendar URL (leave empty to use default): ')
-        if self.calendarURL is None or self.calendarURL.strip() == '':
-            self.logger.info('using default calendar url')
-            # bulls
-            self.calendarURL = "https://www.google.com/calendar/ical/chicagobullsbot%40gmail.com/private-48b0043bc03da315706a2ca595c0e63b/basic.ics"
-            # bucks
-            # self.calendarURL = "https://www.google.com/calendar/ical/017inmrbgdrss70gjir461mnno%40group.calendar.google.com/private-ee501ceb1a29a9ab3a52d64418e63963/basic.ics"
-            # knicks
-            # self.calendarURL = "https://www.google.com/calendar/ical/3d3q2uon1smf79hl7ndjn84s7c%40group.calendar.google.com/private-5652215b944e1e024b7eeb31121774fc/basic.ics"
-            # clippers
-            # self.calendarURL = "https://www.google.com/calendar/ical/q4b1cormv9ikndag34rf73oug8%40group.calendar.google.com/private-2603eb76cd456fdbd69684f4418101d6/basic.ics"
-        # team
-        if team_name is None:
-            self.teamName = "Chicago Bulls"
-            # self.teamName = "Milwaukee Bucks"
-            # self.teamName = "New York Knicks"
-            # self.teamName = "Los Angeles Clippers"
+        # check that the username and password work, if not die now!
+        if not self.authenticate_reddit():
+            self.logger.info("Could not login to reddit with " + self.username)
+            raise praw.errors.LoginRequired("bulls_bot")
         else:
-            self.teamName = team_name
+            self.logger.info(self.username + ' successfully logged in.')
+
+        # load all other settings from settings file
+        self.load_settings()
+
+    def load_settings(self):
+        # calendar link(s)
+        self.calendar_no_date_flag = settings.calendar['no_date_flag']
+        self.logger.info('using default calendar url')
+        self.calendarURL = settings.calendar['url']
+
+        # team
+        self.teamName = settings.bot['team_name']
         # team data
-        self.teamInfoFilePath = "data/teams.csv"
+        self.teamInfoFilePath = settings.team['team_data_file']
         # load team data
         self.load_teams()
+
         # standings
         self.latest_standings = None
         self.standings_sidebar_last_updated = None
-        self.standings_grouping = "conference"
-        self.sidebar_standings_start_string = "####**Playoffs Seeding**\nWest|W/L|GB|East|W/L|GB\n:--|:--:|:--:|:--|:--:|:--:\n"
-        self.sidebar_standings_end_string = "\n\n"
+        self.standings_grouping = settings.standings['standings_grouping']
+        self.sidebar_standings_start_string = settings.standings['sidebar_standings_start_string']
+        self.sidebar_standings_end_string = settings.standings['sidebar_standings_end_string']
         # self.sidebar_standings_row_fmt = "[](#{short_name}){med_name}|{wins}|{losses}|{percent}\n"
         formatter = StandingsFormatter(self.team_dict, self.team_dict_med_key, self.teamName,
-            division_standings_format="[](#{short_name}){med_name}|{wins}|{losses}|{percent}\n",
-            conference_standings_format="*{rank}*[](#{short_name})|{wins}-{losses}|{behind}"
-        )
+                                       division_standings_format=settings.standings['division_standings_format'],
+                                       conference_standings_format=settings.standings['conference_standings_format']
+                                       )
         self.standings_formatter = formatter.get_formatter(self.standings_grouping)
 
         # gameday info
-        self.bot_timezone = pytz.timezone('America/Los_Angeles')
+        self.bot_timezone = pytz.timezone(settings.bot['timezone'])
         self.game_day_info = None
         self.last_game_day_check = datetime.min
         # game thread links (key is date, value is game_thread_links object)
         self.game_thread_links = {}
         # update frequencies
-        self.non_game_day_upate_freq = 60 * 60 * 10    # every 10 hours on non-game days
-        self.game_day_upate_freq = 60 * 60             # every hour on game days
-        self.near_game_upate_freq = 60 * 5             # every 5 minutes as we approach game time
-        self.game_time_upate_freq = 60 * 1.5           # every 1.5 minutes once the game has started
-        self.game_thread_create_time = 60 * 60         # how many seconds before tip-off should game threads be created
+        self.non_game_day_upate_freq = settings.bot['non_game_day_update_freq']
+        self.game_day_upate_freq = settings.bot['game_day_update_freq']
+        self.near_game_upate_freq = settings.bot['near_game_update_freq']
+        self.game_time_upate_freq = settings.bot['game_time_update_freq']
+        self.game_thread_create_time = settings.bot['game_thread_create_time']
+
         # schedule template
-        self.max_events_to_display = 14
-        self.prior_events_to_display = 3
-        self.min_events_to_display = 10
-        self.sidebar_schedule_start_string = "* **Schedule**"
-        self.sidebar_schedule_end_string = "\n\n"
+        self.max_events_to_display = settings.schedule['max_events_to_display']
+        self.prior_events_to_display = settings.schedule['prior_events_to_display']
+        self.min_events_to_display = settings.schedule['min_events_to_display']
+        self.sidebar_schedule_start_string = settings.schedule['sidebar_schedule_start_string']
+        self.sidebar_schedule_end_string = settings.schedule['sidebar_schedule_end_string']
         # schedule markdown formats
-        self.event_fmt = "[{event_title}]({event_hashtag}) [{month_day}](#DESC)\n"
-        self.past_game_fmt =    "[{game_status}](#STATUS) [{away_team_short}](#TEAM) [{away_score}](#SCORE) [{home_team_short}](#TEAM2) [{home_score}](#SCORE2) [{month_day}](#DATE)\n"
-        self.current_game_fmt = "[{game_status}](#STATUS) [{away_team_short}](#TEAM) [{away_score}](#SCORE) [{home_team_short}](#TEAM2) [{home_score}](#SCORE2) [{month_day}](#DATE)\n"
-        self.future_game_fmt =  "[{month_day}](#STATUS) [{away_team_short}](#TEAM) [](#SCORE) [{home_team_short}](#TEAM2) [](#SCORE2) [{game_time_local}](#DATE)\n"
-        self.game_thread_link_fmt = "[]({link})"
-        self.event_markdown_pre = " - "  # goes before each game/event
-        self.event_markdown_post = ""    # goes after each game/event
+        self.event_fmt = settings.schedule['event_fmt']
+        self.past_game_fmt = settings.schedule['past_game_fmt']
+        self.current_game_fmt = settings.schedule['current_game_fmt']
+        self.future_game_fmt = settings.schedule['future_game_fmt']
+        self.game_thread_link_fmt = settings.schedule['game_thread_link_fmt']
+        self.event_markdown_pre = settings.schedule['event_markdown_pre']
+        self.event_markdown_post = settings.schedule['event_markdown_post']
+
         # thread markdown formats
-        self.post_game_thread_fmt = "HOME TEAM|FINAL SCORE|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *{full_date}* *[BOX SCORE](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html#nbaGIboxscore)*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n"
-        self.post_game_thread_title_fmt = "POST GAME: {sub_team_name} ({sub_team_win_loss}) {beat_or_lose} {non_sub_team_name} ({non_sub_team_win_loss}) ({sub_score}-{non_sub_score})"
-        self.pre_game_thread_fmt = "HOME TEAM|INFORMATION|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|*{full_date}*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n\n[](#empty)|DETAILED OVERVIEW|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* {broadcast}|[](#empty)\n[](#empty)|*GAME TIMES* [Eastern: {game_time_eastern}](#TIME) / [Central: {game_time_central}](#TIME) / [Mountain: {game_time_mountain}](#TIME) / [Pacific:  {game_time_pacific}](#TIME)|[](#empty)\n[](#empty)|*MISC/NOTES* [Game Story](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html)|[](#empty)\n[](#empty)|*SUBREDDITS* /r/{home_subreddit} / /r/{away_subreddit}|[](#empty)\n"
-        self.pre_game_thread_title_fmt = "PRE GAME: {home_team_name} ({home_team_win_loss}) vs. {away_team_name} ({away_team_win_loss}) ({month_day_year})"
-        self.pre_game_date_fmt = "%A***%b %d***%Y"
-        self.current_game_thread_fmt = "HOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *VERSUS* *[BOX SCORE](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html#nbaGIboxscore)*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n\n[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* {broadcast}|[](#empty)\n[](#empty)|*STREAMS* TBD|[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)|[](#empty)\n"
-        self.current_game_thread_split_text = "[](#empty)|INFORMATION"
-        self.game_thread_title_fmt = "GAME THREAD: {home_team_name} ({home_team_win_loss}) vs. {away_team_name} ({away_team_win_loss}) ({month_day_year})"
-        self.game_thread_title_date_fmt = "%b %d, %Y"
-        self.game_thread_flairs = dict(
-            game='gamethread',
-            pre='pregame',
-            post='postgame'
-        )
-        # check that the username and password work, if not die now!
-        if not self.authenticate_reddit():
-            self.logger.info("Could not login to reddit with " + self.username)
-            raise praw.errors.LoginRequired("bulls_bot")
+        self.post_game_thread_fmt = settings.thread['post_game_thread_fmt']
+        self.post_game_thread_title_fmt = settings.thread['post_game_thread_title_fmt']
+        self.pre_game_thread_fmt = settings.thread['pre_game_thread_fmt']
+        self.pre_game_thread_title_fmt = settings.thread['pre_game_thread_title_fmt']
+        self.pre_game_date_fmt = settings.thread['pre_game_date_fmt']
+        self.current_game_thread_fmt = settings.thread['current_game_thread_fmt']
+        self.current_game_thread_split_text = settings.thread['current_game_thread_split_text']
+        self.game_thread_title_fmt = settings.thread['game_thread_title_fmt']
+        self.game_thread_title_date_fmt = settings.thread['game_thread_title_date_fmt']
+        self.game_thread_flairs = settings.thread['game_thread_flairs']
 
     def authenticate_reddit(self):
         """
@@ -227,10 +222,10 @@ class bulls_bot(object):
                         "game_vevent": event
                     }
                     break
-        # reset to none if it's not a gameday
+                    # reset to none if it's not a gameday
         if not is_game_day:
             self.game_day_info = None
-        # log that we just checked
+            # log that we just checked
         self.last_game_day_check = current_local_datetime
 
     def get_seconds_till_game(self):
@@ -238,12 +233,12 @@ class bulls_bot(object):
         current_local_datetime = datetime.now(local_timezone)
         if self.is_today_a_game_day():
             return (self.game_day_info['local_game_time'] - current_local_datetime).total_seconds()
-        # todo return actual secs till game even if it's not a game-day
+            # todo return actual secs till game even if it's not a game-day
         return 10000000000
 
     def is_game_over(self):
         return self.game_day_info is not None \
-            and 'current_status' in self.game_day_info \
+                   and 'current_status' in self.game_day_info \
             and (self.game_day_info['current_status'] == 'RECAP' or self.game_day_info['current_status'] == 'RECAPOT')
 
     def is_the_game_on_now(self):
@@ -269,10 +264,10 @@ class bulls_bot(object):
                         if value['current_status'] == 'LIVE' or value['current_status'] == 'LIVEOT':
                             is_game_live = True
                         break
-                # if the scraper couldn't find the game (a possibility with nba.com)
-                # and the last status wasn't FINAL, assume it's still on
+                        # if the scraper couldn't find the game (a possibility with nba.com)
+                    # and the last status wasn't FINAL, assume it's still on
                 if not game_found and (self.game_day_info['current_status'] != 'RECAP' or
-                                            self.game_day_info['current_status'] != 'RECAPOT'):
+                                               self.game_day_info['current_status'] != 'RECAPOT'):
                     is_game_live = True
         return is_game_live
 
@@ -320,7 +315,9 @@ class bulls_bot(object):
         cal_timezone = pytz.timezone(cal.contents['x-wr-timezone'][0].value)
         # sort games
         # todo: double check that this works properly if each event/game is in a different timezone
-        events = sorted(cal.vevent_list, key=lambda vevent: vevent.dtstart.value if (type(vevent.dtstart.value) is datetime) else datetime(vevent.dtstart.value.year, vevent.dtstart.value.month, vevent.dtstart.value.day, tzinfo=cal_timezone))
+        events = sorted(cal.vevent_list, key=lambda vevent: vevent.dtstart.value if (
+            type(vevent.dtstart.value) is datetime) else datetime(vevent.dtstart.value.year, vevent.dtstart.value.month,
+                                                                  vevent.dtstart.value.day, tzinfo=cal_timezone))
         # events = sorted(cal.vevent_list, key=attrgetter('dtstart.value'))
 
         # localize times
@@ -334,7 +331,7 @@ class bulls_bot(object):
             local_end_date = local_timezone.localize(endDate, is_dst=None)
         else:
             local_end_date = startDate.astimezone(local_timezone)
-        # loop through events
+            # loop through events
         events_added_to_schedule = 0
         schedule_as_string = ''
         for event in events:
@@ -344,7 +341,8 @@ class bulls_bot(object):
             else:
                 # otherwise, it's a date so create new datetime with the date and give it the local timezone
                 # (if we were to use the calendars timezone and then convert it to local time, we could potentially change the date)
-                localGameTime = datetime(event.dtstart.value.year, event.dtstart.value.month, event.dtstart.value.day, tzinfo=local_timezone)
+                localGameTime = datetime(event.dtstart.value.year, event.dtstart.value.month, event.dtstart.value.day,
+                                         tzinfo=local_timezone)
             if local_start_date < localGameTime < local_end_date:
                 if self.is_game_vevent(event):
                     # get game formatted to proper markdown
@@ -365,10 +363,10 @@ class bulls_bot(object):
                             event_as_formatted_schedule_str + \
                             self.event_markdown_post
                     events_added_to_schedule += 1
-                # stop adding events once we reach the max
+                    # stop adding events once we reach the max
                 if events_added_to_schedule >= max_events:
                     break
-        # replace trailing newline and return
+                    # replace trailing newline and return
         return schedule_as_string.rstrip('\n')
 
     def format_event(self, event, timezone):
@@ -395,10 +393,12 @@ class bulls_bot(object):
         else:
             # if the start and end dates are on different days in same month
             if local_date_time.year == local_end_date_time.year and local_date_time.month == local_end_date_time.month:
-                month_day = local_date_time.strftime(date_format).upper() + '-' + local_end_date_time.strftime(day_format)
+                month_day = local_date_time.strftime(date_format).upper() + '-' + local_end_date_time.strftime(
+                    day_format)
             # if they are in two different months
             else:
-                month_day = local_date_time.strftime(short_date_format) + '-' + local_end_date_time.strftime(short_date_format)
+                month_day = local_date_time.strftime(short_date_format) + '-' + local_end_date_time.strftime(
+                    short_date_format)
         title_and_hashtag = summary.replace(self.calendar_no_date_flag, '').split(' #')
         title = title_and_hashtag[0].strip()
         try:
@@ -438,9 +438,10 @@ class bulls_bot(object):
                 game_data = games_data[away_team_short + '_' + home_team_short]
             except KeyError:
                 # this happens when we have a game in the game calendar but nba.com doesn't have it listed
-                self.logger.error('could not find game data for ' + away_team_short + '_' + home_team_short + ' on ' + month_day)
+                self.logger.error(
+                    'could not find game data for ' + away_team_short + '_' + home_team_short + ' on ' + month_day)
                 raise
-            # if game start time has passed and we're in the middle of the game
+                # if game start time has passed and we're in the middle of the game
             #  and the game is not listed as live or final or postponed, raise error
             if chiDateTime < datetime.now(timezone) and self.game_day_info is not None \
                 and (self.game_day_info['current_status'] == 'LIVE' or self.game_day_info['current_status'] == 'LIVEOT') \
@@ -483,7 +484,7 @@ class bulls_bot(object):
                                              home_score="",
                                              away_score="",
                                              month_day=month_day)
-        elif has_scores and (game_data['current_status'] == "LIVE" or game_data['current_status'] == "LIVEOT") :
+        elif has_scores and (game_data['current_status'] == "LIVE" or game_data['current_status'] == "LIVEOT"):
             return self.current_game_fmt.format(game_status=game_data['game_status'].upper(),
                                                 game_time_local=game_time_local,
                                                 home_team_short=home_format.format(home_team_short),
@@ -517,7 +518,7 @@ class bulls_bot(object):
                 # if the game is on now, update at the game time update frequency
                 current_update_freq = self.game_time_upate_freq
             elif (todays_game_thread_links is None or todays_game_thread_links.game is None) \
-                    and self.get_seconds_till_game() > - 1:
+                and self.get_seconds_till_game() > - 1:
                 # if there's no game thread and the game hasn't started
                 # update when the game thread is supposed to get created
                 current_update_freq = self.get_seconds_till_game() - self.game_thread_create_time
@@ -525,13 +526,13 @@ class bulls_bot(object):
                 # if the game is over and no post-game is on, update immediately
                 current_update_freq = 0
             elif self.is_game_over() and todays_game_thread_links is not None \
-                    and todays_game_thread_links.post is not None:
+                and todays_game_thread_links.post is not None:
                 # if the game is over and post-game thread is created, update tomorrow at 5am
                 current_update_freq = (five_am - now).total_seconds()
             else:
                 # game isn't on and isn't over so update when the game is about to start
                 current_update_freq = self.get_seconds_till_game()
-        # make sure the soonest we can update is in 30 seconds
+                # make sure the soonest we can update is in 30 seconds
         return max(current_update_freq, 30)
 
     def generate_default_schedule(self):
@@ -542,7 +543,10 @@ class bulls_bot(object):
         local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
         cal_timezone = pytz.timezone(cal.contents['x-wr-timezone'][0].value)
         # for vevent in cal.vevent_list:
-        events = sorted(cal.vevent_list, key=lambda vevent: vevent.dtstart.value if (type(vevent.dtstart.value) is datetime) else datetime(vevent.dtstart.value.year, vevent.dtstart.value.month, vevent.dtstart.value.day, tzinfo=cal_timezone), reverse=True)
+        events = sorted(cal.vevent_list, key=lambda vevent: vevent.dtstart.value if (
+            type(vevent.dtstart.value) is datetime) else datetime(vevent.dtstart.value.year, vevent.dtstart.value.month,
+                                                                  vevent.dtstart.value.day, tzinfo=cal_timezone),
+                        reverse=True)
         # events = sorted(cal.vevent_list, key=attrgetter('dtstart.value'), reverse=True)
         current_local_date = datetime.now(self.bot_timezone).date()
         prior_events = 0
@@ -562,7 +566,8 @@ class bulls_bot(object):
                     else:
                         # create new datetime with the date and give it the local timezone
                         # (if we were to use the calendars timezone and then convert it to local time, we could potentially change the date)
-                        begin_date = datetime(event.dtstart.value.year, event.dtstart.value.month, event.dtstart.value.day, tzinfo=local_timezone)
+                        begin_date = datetime(event.dtstart.value.year, event.dtstart.value.month,
+                                              event.dtstart.value.day, tzinfo=local_timezone)
                     break
 
         return self.schedule_maker(startDate=begin_date, max_events=self.max_events_to_display)
@@ -571,7 +576,7 @@ class bulls_bot(object):
         self.logger.info("begin updating schedule ... ")
         if schedule is None:
             schedule = self.generate_default_schedule()
-        # make sure we're logged in (and if not, log in)
+            # make sure we're logged in (and if not, log in)
         if self.authenticate_reddit():
             #Get the sidebar
             # settings=r.get_settings(self.team_dict[self.teamName]['sub'])
@@ -583,11 +588,17 @@ class bulls_bot(object):
             after_sched_start = description_markup.split(self.sidebar_schedule_start_string, 1)[1]
             after_sched_end = after_sched_start.split(self.sidebar_schedule_end_string, 1)[1]
             settings['description'] = before_sched_start + self.sidebar_schedule_start_string + "\n" + schedule + \
-                                    self.sidebar_schedule_end_string + after_sched_end
+                                      self.sidebar_schedule_end_string + after_sched_end
             settings = self.reddit.get_subreddit(self.subreddit).update_settings(description=settings['description'])
             local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
             formated_time = datetime.now(local_timezone).strftime("%I:%M %p")
-            responses = ["Thibs would be proud of this hustle! Updated that schedy sched for u at around ", "Schedy sched updated ", "1000010010101000101001 at ", "Ok, just updated at ", "What it is, just updated at ", "Boom, did it at ", "Puttin in work sukka! Just updated that schedule at ", "Yoooooooooo.... did it again at ", "Knock knock. (Who's there?) BULLS BOT PUTTIN IN WORK! ... at ", " Yaawwn, got anything else for me to do? ... just updated again at ", "Guess what I just did at ", "Beep Boop Bop Beep Booop at "]
+            responses = ["Thibs would be proud of this hustle! Updated that schedy sched for u at around ",
+                         "Schedy sched updated ", "1000010010101000101001 at ", "Ok, just updated at ",
+                         "What it is, just updated at ", "Boom, did it at ",
+                         "Puttin in work sukka! Just updated that schedule at ", "Yoooooooooo.... did it again at ",
+                         "Knock knock. (Who's there?) BULLS BOT PUTTIN IN WORK! ... at ",
+                         " Yaawwn, got anything else for me to do? ... just updated again at ",
+                         "Guess what I just did at ", "Beep Boop Bop Beep Booop at "]
             response = responses[randrange(len(responses))]
             self.logger.info('[In /r/' + self.subreddit + '] ' + response + formated_time)
         else:
@@ -627,7 +638,7 @@ class bulls_bot(object):
                     if getattr(gtl, game_pre_post) is None:
                         # set it
                         self.logger.debug('found ' + game_pre_post + ' game thread for ' +
-                                      str(datetime.fromtimestamp(post.created_utc, local_timezone).date()))
+                                          str(datetime.fromtimestamp(post.created_utc, local_timezone).date()))
                         setattr(gtl, game_pre_post, post.permalink)
 
             elif datetime.fromtimestamp(post.created_utc, local_timezone).date() < date:
@@ -649,7 +660,7 @@ class bulls_bot(object):
         game_thread = None
         if key in self.game_thread_links:
             game_thread = self.game_thread_links[key]
-        # if any of the game threads requested are none, search sub
+            # if any of the game threads requested are none, search sub
         missing_game_thread_flairs = {}
         for key in game_pre_post:
             if game_thread is None or getattr(game_thread, key) is None:
@@ -657,17 +668,17 @@ class bulls_bot(object):
 
         if date.date() <= datetime.now(self.bot_timezone).date() \
             and len(missing_game_thread_flairs) > 0 \
-                and self.authenticate_reddit():
+            and self.authenticate_reddit():
             # couldn't find link, let's find them
             tmp_game_thread = self.findGameThreadsByDate(self.reddit.get_subreddit(self.subreddit),
-                                                     missing_game_thread_flairs, date.date(), local_timezone)
+                                                         missing_game_thread_flairs, date.date(), local_timezone)
             # set missing game threads if found
             if game_thread is None and tmp_game_thread is not None:
                 game_thread = tmp_game_thread
             elif tmp_game_thread is not None:
                 for key in missing_game_thread_flairs.keys():
                     setattr(game_thread, key, getattr(tmp_game_thread, key))
-            # save game thread
+                    # save game thread
             if game_thread is not None:
                 self.add_game_thread_links(game_thread, gameDate=date)
         return game_thread
@@ -710,7 +721,7 @@ class bulls_bot(object):
         """
         game_thread_links = self.get_game_thread_links_for_date(datetime.now(self.bot_timezone), game_pre_post='game')
         return self.is_today_a_game_day() \
-            and -1 < self.get_seconds_till_game() < self.game_thread_create_time \
+                   and -1 < self.get_seconds_till_game() < self.game_thread_create_time \
             and (game_thread_links is None
                  or (game_thread_links is not None and game_thread_links.game is None))
 
@@ -735,7 +746,7 @@ class bulls_bot(object):
                     updated_game_thread_markup = game_thread_markup.split(self.current_game_thread_split_text)[0]
                     game_thread_submission = self.reddit.get_submission(url=link)
                     current_game_thread_post_text = \
-                        self.current_game_thread_split_text +\
+                        self.current_game_thread_split_text + \
                         game_thread_submission.selftext.split(self.current_game_thread_split_text)[1]
                     game_thread_submission.edit(
                         updated_game_thread_markup + current_game_thread_post_text
@@ -803,13 +814,13 @@ class bulls_bot(object):
             need_to_create_game_thread = self.need_to_create_game_thread()
             need_to_update_game_thread = \
                 self.get_game_thread_links_for_date(datetime.now(self.bot_timezone), game_pre_post='game') is not None \
-                and (game_is_live or self.game_day_info['current_status'] == 'LIVE'
-                     or self.game_day_info['current_status'] == 'LIVEOT')
+                    and (game_is_live or self.game_day_info['current_status'] == 'LIVE'
+                         or self.game_day_info['current_status'] == 'LIVEOT')
 
             if need_to_create_postgame_thread \
-                    or need_to_create_game_thread \
-                    or need_to_update_game_thread \
-                    or need_to_create_pregame_thread:
+                or need_to_create_game_thread \
+                or need_to_update_game_thread \
+                or need_to_create_pregame_thread:
                 # get the game game time
                 local_game_time = self.game_day_info["local_game_time"]
                 # local times
@@ -818,7 +829,8 @@ class bulls_bot(object):
                 link_date = local_game_time.strftime(link_date_format)
                 game_time_eastern = local_game_time.astimezone(pytz.timezone('US/Eastern')).strftime(local_time_format)
                 game_time_central = local_game_time.astimezone(pytz.timezone('US/Central')).strftime(local_time_format)
-                game_time_mountain = local_game_time.astimezone(pytz.timezone('US/Mountain')).strftime(local_time_format)
+                game_time_mountain = local_game_time.astimezone(pytz.timezone('US/Mountain')).strftime(
+                    local_time_format)
                 game_time_pacific = local_game_time.astimezone(pytz.timezone('US/Pacific')).strftime(local_time_format)
                 # get game_day data
                 games = nba_game_scraper.get_games(local_game_time, 30)   # thirty second cache
@@ -827,7 +839,7 @@ class bulls_bot(object):
                 for key, value in games.iteritems():
                     if key.find(self.team_dict[self.teamName]['short_name']) is not -1:
                         game_data = value
-                # what if game is not in list? nba.com will periodically remove a game for some reason
+                        # what if game is not in list? nba.com will periodically remove a game for some reason
                 home_team_info = self.team_dict_short_key[game_data['home_team'].upper()]
                 home_team_standings = self.get_standings()[home_team_info['med_name']]
                 away_team_info = self.team_dict_short_key[game_data['away_team'].upper()]
@@ -924,7 +936,7 @@ class bulls_bot(object):
                             streakCount = int(our_standings['streak'].split(' ')[1])
                             if streakCount >= 5 and streakWinLoss == 'Win':
                                 sub_team_name = self.teamName + ' Streakbreakers'
-                        # format the title with game data
+                                # format the title with game data
                         postgame_thread_title = self.post_game_thread_title_fmt.format(
                             sub_team_name=sub_team_name,
                             sub_team_win_loss=our_win_loss,
@@ -984,10 +996,10 @@ class bulls_bot(object):
             after_standings_end = after_standings_start.split(self.sidebar_standings_end_string, 1)[1]
 
             settings['description'] = before_standings_start \
-                + self.sidebar_standings_start_string \
-                + standings_table \
-                + self.sidebar_standings_end_string \
-                + after_standings_end
+                                      + self.sidebar_standings_start_string \
+                                      + standings_table \
+                                      + self.sidebar_standings_end_string \
+                                      + after_standings_end
 
             self.reddit.get_subreddit(self.subreddit).update_settings(
                 description=settings['description']
@@ -1031,7 +1043,7 @@ def schedule_schedule_updates():
                 run_updates = False
                 update_freq = 0
                 raise
-        logging.info("sleeping for " + str(update_freq/60.0) + " minutes ... ... ...")
+        logging.info("sleeping for " + str(update_freq / 60.0) + " minutes ... ... ...")
         time.sleep(update_freq)
 
 
