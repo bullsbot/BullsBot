@@ -1010,28 +1010,27 @@ def schedule_schedule_updates():
         try:
             # try:
             bot.load_standings()                                  # update standings
-            # except Exception:
-            #     logging.error("unable to load standings at " + str(datetime.now(bot.bot_timezone)))
-            #     pass
             bot.generate_or_update_game_thread_if_necessary()     # update or create game threads if necessary
             bot.update_standings_sidebar()                        # update standings in sidebar if necessary
             schedule = bot.generate_default_schedule()            # get schedule
             bot.update_schedule(schedule)                         # update schedule in sidebar
             update_freq = bot.get_current_update_freq()           # figure out when to update again
             consecutive_error_count = 0
-        except KeyboardInterrupt:
+        except KeyboardInterrupt, e:
             logging.error("keyboard interrupt. Stopping schedule updates")
+            logging.exception(e)
             raise
-        # except BaseException, e:
-        #     consecutive_error_count += 1
-        #     logging.error(e)
-        #     logging.warning("an error occurred during schedule creation " + str(consecutive_error_count) +
-        #                     " consecutive errors")
-        #     update_freq = 60    # try again in one minutes
-        #     if consecutive_error_count > 5:
-        #         logging.warning("too many consecutive errors. exiting.")
-        #         run_updates = False
-        #         update_freq = 0
+        except BaseException, e:
+            consecutive_error_count += 1
+            logging.exception(e)
+            logging.warning("an error occurred during schedule creation " + str(consecutive_error_count) +
+                            " consecutive errors")
+            update_freq = 60    # try again in one minutes
+            if consecutive_error_count > 10:
+                logging.warning("too many consecutive errors. exiting.")
+                run_updates = False
+                update_freq = 0
+                raise
         logging.info("sleeping for " + str(update_freq/60.0) + " minutes ... ... ...")
         time.sleep(update_freq)
 
