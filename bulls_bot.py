@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.DEBUG,
                     filemode='a')
 # define a Handler which writes INFO messages or higher to the sys.stderr
 console = logging.StreamHandler()
-console.setLevel(logging.WARNING)
+console.setLevel(logging.INFO)
 # set a format for console use
 formatter = logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s', datefmt=log_date_fmt)
 # tell the handler to use this format
