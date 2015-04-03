@@ -18,7 +18,7 @@ team = dict(
 
 standings = dict(
     standings_grouping="conference",
-    sidebar_standings_start_string="####**Playoffs Seeding**\nWest|W/L|GB|East|W/L|GB\n:--|:--:|:--:|:--|:--:|:--:\n",
+    sidebar_standings_start_string="#####**Standings**\nWest|W/L|GB|East|W/L|GB\n:--|:--:|:--:|:--|:--:|:--:\n",
     sidebar_standings_end_string="\n\n",
     division_standings_format="[](#{short_name}){med_name}|{wins}|{losses}|{percent}\n",
     conference_standings_format="*{rank}*[](#{short_name})|{wins}-{losses}|{behind}"
