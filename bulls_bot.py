@@ -213,7 +213,7 @@ class bulls_bot(object):
         cal = self.get_cal()
         is_game_day = False
         for event in cal.vevent_list:
-            if self.is_game_vevent(event):
+            if self.is_game_vevent(event) and type(event.dtstart.value) is datetime:
                 local_game_time = event.dtstart.value.astimezone(self.bot_timezone)
                 if local_game_time.date() == current_local_date:
                     is_game_day = True
@@ -415,9 +415,16 @@ class bulls_bot(object):
         date_format = "%b %d"
         time_format = "%I:%M %p"
         # if startDate <= game.dtstart.value <= endDate:
-        chiDateTime = game.dtstart.value.astimezone(timezone)
+        if type(game.dtstart.value) is datetime:
+            chiDateTime = game.dtstart.value.astimezone(timezone)
+        else:
+            chiDateTime = datetime(game.dtstart.value.year, game.dtstart.value.month, game.dtstart.value.day,
+                                   tzinfo=timezone)
         month_day = chiDateTime.strftime(date_format).upper().replace(" 0", " ")
-        game_time_local = chiDateTime.strftime(time_format).lstrip("0")
+        if type(game.dtstart.value) is datetime:
+            game_time_local = chiDateTime.strftime(time_format).lstrip("0")
+        else:
+            game_time_local = 'TBA'
         # Get Summary
         self.logger.debug('Summary: ' + game.summary.valueRepr())
         self.logger.debug('Location: ' + game.location.valueRepr())
