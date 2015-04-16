@@ -12,6 +12,7 @@ from random import randrange
 import settings
 import nba_game_scraper
 import nba_standings_scraper
+import util
 from standings_formatter import StandingsFormatter
 
 log_date_fmt = '%y-%m-%d %X %Z'
@@ -53,7 +54,7 @@ class bulls_bot(object):
         else:
             self.username = settings.reddit['username']
             self.logger.info("Reddit Username: {}".format(self.username))
-        # sub
+            # sub
         if 'subreddit' not in settings.reddit:
             self.subreddit = raw_input('Subreddit (e.g. chicagobulls, not /r/chicagobulls): ')
         else:
@@ -100,7 +101,7 @@ class bulls_bot(object):
         formatter = StandingsFormatter(self.team_dict, self.team_dict_med_key, self.teamName,
                                        division_standings_format=settings.standings['division_standings_format'],
                                        conference_standings_format=settings.standings['conference_standings_format']
-                                       )
+        )
         self.standings_formatter = formatter.get_formatter(self.standings_grouping)
 
         # gameday info
@@ -213,7 +214,7 @@ class bulls_bot(object):
         cal = self.get_cal()
         is_game_day = False
         for event in cal.vevent_list:
-            if self.is_game_vevent(event):
+            if self.is_game_vevent(event) and type(event.dtstart.value) is datetime:
                 local_game_time = event.dtstart.value.astimezone(self.bot_timezone)
                 if local_game_time.date() == current_local_date:
                     is_game_day = True
@@ -265,7 +266,7 @@ class bulls_bot(object):
                             is_game_live = True
                         break
                         # if the scraper couldn't find the game (a possibility with nba.com)
-                    # and the last status wasn't FINAL, assume it's still on
+                        # and the last status wasn't FINAL, assume it's still on
                 if not game_found and (self.game_day_info['current_status'] != 'RECAP' or
                                                self.game_day_info['current_status'] != 'RECAPOT'):
                     is_game_live = True
@@ -415,9 +416,16 @@ class bulls_bot(object):
         date_format = "%b %d"
         time_format = "%I:%M %p"
         # if startDate <= game.dtstart.value <= endDate:
-        chiDateTime = game.dtstart.value.astimezone(timezone)
+        if type(game.dtstart.value) is datetime:
+            chiDateTime = game.dtstart.value.astimezone(timezone)
+        else:
+            chiDateTime = datetime(game.dtstart.value.year, game.dtstart.value.month, game.dtstart.value.day,
+                                   tzinfo=timezone)
         month_day = chiDateTime.strftime(date_format).upper().replace(" 0", " ")
-        game_time_local = chiDateTime.strftime(time_format).lstrip("0")
+        if type(game.dtstart.value) is datetime:
+            game_time_local = chiDateTime.strftime(time_format).lstrip("0")
+        else:
+            game_time_local = 'TBA'
         # Get Summary
         self.logger.debug('Summary: ' + game.summary.valueRepr())
         self.logger.debug('Location: ' + game.location.valueRepr())
@@ -817,6 +825,7 @@ class bulls_bot(object):
                     and (game_is_live or self.game_day_info['current_status'] == 'LIVE'
                          or self.game_day_info['current_status'] == 'LIVEOT')
 
+            variables = {}
             if need_to_create_postgame_thread \
                 or need_to_create_game_thread \
                 or need_to_update_game_thread \
@@ -827,11 +836,12 @@ class bulls_bot(object):
                 local_time_format = "%I:%M %p"
                 link_date_format = "%Y%m%d"
                 link_date = local_game_time.strftime(link_date_format)
-                game_time_eastern = local_game_time.astimezone(pytz.timezone('US/Eastern')).strftime(local_time_format)
-                game_time_central = local_game_time.astimezone(pytz.timezone('US/Central')).strftime(local_time_format)
-                game_time_mountain = local_game_time.astimezone(pytz.timezone('US/Mountain')).strftime(
-                    local_time_format)
-                game_time_pacific = local_game_time.astimezone(pytz.timezone('US/Pacific')).strftime(local_time_format)
+                variables = util.get_zoned_dates_for_format_string(
+                    self.pre_game_thread_fmt + self.current_game_thread_fmt + self.post_game_thread_fmt + \
+                    self.pre_game_thread_title_fmt + self.game_thread_title_fmt + self.post_game_thread_title_fmt,
+                    local_game_time
+                )
+
                 # get game_day data
                 games = nba_game_scraper.get_games(local_game_time, 30)   # thirty second cache
                 game_data = None
