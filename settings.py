@@ -63,7 +63,7 @@ thread = dict(
     game_thread_title_fmt="PLAYOFFS GAME 1: {home_team_name} vs. {away_team_name}",
     game_thread_title_date_fmt="%b %d, %Y",
     game_thread_flairs=dict(
-        game='playoffs',
+        game='gamethread',
         pre='pregame',
         post='postgame'
     )
