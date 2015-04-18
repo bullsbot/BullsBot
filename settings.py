@@ -17,6 +17,7 @@ team = dict(
 )
 
 standings = dict(
+    update_standings=False,
     standings_grouping="conference",
     sidebar_standings_start_string="####**Playoffs Seeding**\nWest|W/L|GB|East|W/L|GB\n:--|:--:|:--:|:--|:--:|:--:\n",
     sidebar_standings_end_string="\n\n",
@@ -35,6 +36,7 @@ bot = dict(
 )
 
 schedule = dict(
+    update_schedule=False,
     max_events_to_display=14,
     prior_events_to_display=3,
     min_events_to_display=10,
@@ -50,17 +52,18 @@ schedule = dict(
 )
 
 thread = dict(
+    create_game_threads=True,
     post_game_thread_fmt="HOME TEAM|FINAL SCORE|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *{full_date}* *[BOX SCORE](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html#nbaGIboxscore)*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n",
-    post_game_thread_title_fmt="POST GAME: {sub_team_name} ({sub_team_win_loss}) {beat_or_lose} {non_sub_team_name} ({non_sub_team_win_loss}) ({sub_score}-{non_sub_score})",
+    post_game_thread_title_fmt="POST GAME: {sub_team_name} {beat_or_lose} {non_sub_team_name}",
     pre_game_thread_fmt="HOME TEAM|INFORMATION|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|*{full_date}*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n\n[](#empty)|DETAILED OVERVIEW|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* {broadcast}|[](#empty)\n[](#empty)|*GAME TIMES* [Eastern: {game_time_eastern}](#TIME) / [Central: {game_time_central}](#TIME) / [Mountain: {game_time_mountain}](#TIME) / [Pacific:  {game_time_pacific}](#TIME)|[](#empty)\n[](#empty)|*MISC/NOTES* [Game Story](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html)|[](#empty)\n[](#empty)|*SUBREDDITS* /r/{home_subreddit} / /r/{away_subreddit}|[](#empty)\n",
-    pre_game_thread_title_fmt="PRE GAME: {home_team_name} ({home_team_win_loss}) vs. {away_team_name} ({away_team_win_loss}) ({month_day_year})",
+    pre_game_thread_title_fmt="PRE GAME: {home_team_name} vs. {away_team_name} ",
     pre_game_date_fmt="%A***%b %d***%Y",
     current_game_thread_fmt="HOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *VERSUS* *[BOX SCORE](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html#nbaGIboxscore)*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n\n[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* {broadcast}|[](#empty)\n[](#empty)|*STREAMS* TBD|[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)|[](#empty)\n",
     current_game_thread_split_text="[](#empty)|INFORMATION",
-    game_thread_title_fmt="GAME THREAD: {home_team_name} ({home_team_win_loss}) vs. {away_team_name} ({away_team_win_loss}) ({month_day_year})",
+    game_thread_title_fmt="PLAYOFFS GAME 1: {home_team_name} vs. {away_team_name}",
     game_thread_title_date_fmt="%b %d, %Y",
     game_thread_flairs=dict(
-        game='gamethread',
+        game='playoffs',
         pre='pregame',
         post='postgame'
     )
