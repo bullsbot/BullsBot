@@ -60,10 +60,10 @@ thread = dict(
     pre_game_date_fmt="%A***%b %d***%Y",
     current_game_thread_fmt="HOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *VERSUS* *[BOX SCORE](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html#nbaGIboxscore)*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n\n[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* {broadcast}|[](#empty)\n[](#empty)|*STREAMS* TBD|[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)|[](#empty)\n",
     current_game_thread_split_text="[](#empty)|INFORMATION",
-    game_thread_title_fmt="PLAYOFFS GAME 1: {home_team_name} vs. {away_team_name}",
+    game_thread_title_fmt="PLAYOFFS GAME 2: {home_team_name} vs. {away_team_name} [CHI leads series 1-0]",
     game_thread_title_date_fmt="%b %d, %Y",
     game_thread_flairs=dict(
-        game='gamethread',
+        game='Playoffs',
         pre='pregame',
         post='postgame'
     )
