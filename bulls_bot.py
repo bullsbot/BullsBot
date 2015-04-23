@@ -1008,7 +1008,7 @@ class bulls_bot(object):
                         )
                         # format the title with game data
                         if playoffs:
-                            game_thread_title = settings.thread['playoff_pre_game_thread_title_fmt'].format(**nba_game_data)
+                            game_thread_title = settings.thread['playoff_game_thread_title_fmt'].format(**nba_game_data)
                         else:
                             game_thread_title = self.game_thread_title_fmt.format(
                                 home_team_name=home_team_info['long_name'],
@@ -1059,7 +1059,7 @@ def schedule_schedule_updates():
     while run_updates:
         try:
             # try:
-            bot.load_standings()                                    # update standings data
+            # bot.load_standings()                                    # update standings data
             if settings.thread['create_game_threads']:
                 bot.generate_or_update_game_thread_if_necessary()   # update or create game threads if necessary
             if settings.standings['update_standings']:
