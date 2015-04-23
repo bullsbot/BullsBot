@@ -1,3 +1,6 @@
+from datetime import datetime
+import time
+
 """
 Settings for bullsbot. Note that this is a python file, so have at it! ... but if it's not python the bot won't load.
 Remember to use \n for new lines in your markdown.
@@ -10,6 +13,33 @@ reddit = dict(
 calendar = dict(
     no_date_flag="#NODATE",
     url="https://www.google.com/calendar/ical/chicagobullsbot%40gmail.com/private-48b0043bc03da315706a2ca595c0e63b/basic.ics",
+    warriors_url="https://www.google.com/calendar/ical/o8g0qs55aqausek3s2lrtc38eg%40group.calendar.google.com/private-15540e214eade3fdb30416d58c3b266c/basic.ics"
+)
+
+data = dict(
+    scoreboard_url="http://data.nba.com/json/cms/noseason/scoreboard/{date:%Y%m%d}/games.json",
+    games_tree="sports_content.games.game",
+
+    # these functions calculate a string given the game object. This output string gets added to the game object
+    add_to_game=dict(
+        game_datetime=lambda game: datetime.fromtimestamp(
+            time.mktime(time.strptime(game['home_start_date'] + game['home_start_time'], '%Y%m%d%H%M'))),
+        series_leader=lambda game: (
+            game["visitor.team_key"] + ' leads series ' + game['playoffs.visitor_wins'] + '-' + game['playoffs.home_wins']
+            if int(game['playoffs.visitor_wins']) > int(game['playoffs.home_wins'])
+            else
+            game["home.team_key"] + ' leads series ' + game['playoffs.home_wins'] + '-' + game['playoffs.visitor_wins']
+            if int(game['playoffs.visitor_wins']) < int(game['playoffs.home_wins'])
+            else 'Series tied at ' + game['playoffs.visitor_wins'] + '-' + game['playoffs.home_wins']
+        ),
+        period_time_str=lambda game: ("G{game[playoffs][game_number]} - " +
+                                      ("{dt:%d/%m}" if int(game['period_time.game_status']) == 0
+                                       else "{game[period_time][period_status]}"
+                                      if game['period_time.game_clock'] == ''
+                                      else "Q{game[period_time][period_value]} {game[period_time][game_clock]}")
+        ).format(game=game, dt=datetime.fromtimestamp(
+            time.mktime(time.strptime(game['home_start_date'] + game['home_start_time'], '%Y%m%d%H%M')))),
+    ),
 )
 
 team = dict(
@@ -28,11 +58,11 @@ standings = dict(
 bot = dict(
     team_name="Chicago Bulls",
     timezone='America/Los_Angeles',
-    non_game_day_update_freq=60 * 60 * 10,   # every 10 hours on non-game days
-    game_day_update_freq=60 * 60,            # every hour on game days
-    near_game_update_freq=60 * 5,            # every 5 minutes as we approach game time
-    game_time_update_freq=60 * 1.5,          # every 1.5 minutes once the game has started
-    game_thread_create_time=60 * 60         # how many seconds before tip-off should game threads be created
+    non_game_day_update_freq=60 * 60 * 10, # every 10 hours on non-game days
+    game_day_update_freq=60 * 60, # every hour on game days
+    near_game_update_freq=60 * 5, # every 5 minutes as we approach game time
+    game_time_update_freq=60 * 1.5, # every 1.5 minutes once the game has started
+    game_thread_create_time=60 * 60          # how many seconds before tip-off should game threads be created
 )
 
 schedule = dict(
@@ -62,8 +92,10 @@ thread = dict(
     current_game_thread_split_text="[](#empty)|INFORMATION",
     game_thread_title_fmt="PLAYOFFS GAME 1: {home_team_name} vs. {away_team_name}",
     game_thread_title_date_fmt="%b %d, %Y",
+    playoff_pre_game_thread_title_fmt="PRE GAME: {visitor.city} {visitor.nickname} vs. {home.city} {home.nickname} [{series_leader}]",
+    playoff_game_thread_title_fmt="PLAYOFFS GAME {playoffs.game_number}: {visitor.city} {visitor.nickname} vs. {home.city} {home.nickname} [{series_leader}]",
     game_thread_flairs=dict(
-        game='gamethread',
+        game='playoffs',
         pre='pregame',
         post='postgame'
     )

@@ -7,9 +7,11 @@ import getpass
 import vobject
 import pytz
 import urllib2
+import json
 import praw
 from random import randrange
 import settings
+import utils
 import nba_game_scraper
 import nba_standings_scraper
 from standings_formatter import StandingsFormatter
@@ -22,7 +24,7 @@ logging.basicConfig(level=logging.DEBUG,
                     filemode='a')
 # define a Handler which writes INFO messages or higher to the sys.stderr
 console = logging.StreamHandler()
-console.setLevel(logging.INFO)
+console.setLevel(logging.DEBUG)
 # set a format for console use
 formatter = logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s', datefmt=log_date_fmt)
 # tell the handler to use this format
@@ -200,6 +202,25 @@ class bulls_bot(object):
         tmp_standings = nba_standings_scraper.scrape_standings(group=self.standings_grouping)
         if tmp_standings and tmp_standings is not None:
             self.latest_standings = tmp_standings
+
+    def load_json_scoreboard_data(self):
+        url = settings.data['scoreboard_url'].format(date=datetime.now(self.bot_timezone))
+        return utils.dotdictify(json.loads(urllib2.urlopen(url, timeout=2).read()))
+
+    def load_json_game_data(self):
+        game_data = None
+        scoreboard = self.load_json_scoreboard_data()
+        games = scoreboard.get(settings.data['games_tree'])
+        team_key = self.team_dict[self.teamName]['short_name']
+        for game_dict in games:
+            game = utils.dotdictify(game_dict)
+            if team_key == game.get('home.team_key') or team_key == game['visitor.team_key']:
+                game_data = game
+                break
+        if game_data is not None:
+            for func_name, func in settings.data['add_to_game'].items():
+                game[func_name] = func(game)
+        return game_data
 
     def is_game_vevent(self, vevent):
         # simple and stupid for now
@@ -823,6 +844,8 @@ class bulls_bot(object):
                 self.get_game_thread_links_for_date(datetime.now(self.bot_timezone), game_pre_post='game') is not None \
                     and (game_is_live or self.game_day_info['current_status'] == 'LIVE'
                          or self.game_day_info['current_status'] == 'LIVEOT')
+            nba_game_data = self.load_json_game_data()
+            playoffs = 'playoffs' in nba_game_data
 
             if need_to_create_postgame_thread \
                 or need_to_create_game_thread \
@@ -880,14 +903,17 @@ class bulls_bot(object):
                         game_time_mountain=game_time_mountain,
                         game_time_pacific=game_time_pacific
                     )
-                    # format the title with game data
-                    pregame_thread_title = self.pre_game_thread_title_fmt.format(
-                        home_team_name=home_team_info['long_name'],
-                        home_team_win_loss=home_team_standings['wins'] + '-' + home_team_standings['losses'],
-                        away_team_name=away_team_info['long_name'],
-                        away_team_win_loss=away_team_standings['wins'] + '-' + away_team_standings['losses'],
-                        month_day_year=local_game_time.strftime(self.game_thread_title_date_fmt)
-                    )
+                    if playoffs:
+                        pregame_thread_title = settings.thread['playoff_pre_game_thread_title_fmt'].format(**nba_game_data)
+                    else:
+                        # format the title with game data
+                        pregame_thread_title = self.pre_game_thread_title_fmt.format(
+                            home_team_name=home_team_info['long_name'],
+                            home_team_win_loss=home_team_standings['wins'] + '-' + home_team_standings['losses'],
+                            away_team_name=away_team_info['long_name'],
+                            away_team_win_loss=away_team_standings['wins'] + '-' + away_team_standings['losses'],
+                            month_day_year=local_game_time.strftime(self.game_thread_title_date_fmt)
+                        )
                     success = self.post_new_or_update_game_thread(pregame_thread_markup,
                                                                   pregame_thread_title, 'pre')
 
@@ -953,6 +979,8 @@ class bulls_bot(object):
                             sub_score=our_score,
                             non_sub_score=their_score
                         )
+                        if playoffs:
+                            postgame_thread_title = postgame_thread_title + " [{series_leader}]".format(**nba_game_data)
                         success = self.post_new_or_update_game_thread(postgame_thread_markup,
                                                                       postgame_thread_title, 'post')
 
@@ -979,13 +1007,16 @@ class bulls_bot(object):
                             broadcast=broadcast
                         )
                         # format the title with game data
-                        game_thread_title = self.game_thread_title_fmt.format(
-                            home_team_name=home_team_info['long_name'],
-                            home_team_win_loss=home_team_standings['wins'] + '-' + home_team_standings['losses'],
-                            away_team_name=away_team_info['long_name'],
-                            away_team_win_loss=away_team_standings['wins'] + '-' + away_team_standings['losses'],
-                            month_day_year=local_game_time.strftime(self.game_thread_title_date_fmt)
-                        )
+                        if playoffs:
+                            game_thread_title = settings.thread['playoff_pre_game_thread_title_fmt'].format(**nba_game_data)
+                        else:
+                            game_thread_title = self.game_thread_title_fmt.format(
+                                home_team_name=home_team_info['long_name'],
+                                home_team_win_loss=home_team_standings['wins'] + '-' + home_team_standings['losses'],
+                                away_team_name=away_team_info['long_name'],
+                                away_team_win_loss=away_team_standings['wins'] + '-' + away_team_standings['losses'],
+                                month_day_year=local_game_time.strftime(self.game_thread_title_date_fmt)
+                            )
                         # post or update game thread
                         success = self.post_new_or_update_game_thread(game_thread_markup, game_thread_title, 'game')
 
