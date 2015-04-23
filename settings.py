@@ -13,7 +13,6 @@ reddit = dict(
 calendar = dict(
     no_date_flag="#NODATE",
     url="https://www.google.com/calendar/ical/chicagobullsbot%40gmail.com/private-48b0043bc03da315706a2ca595c0e63b/basic.ics",
-    warriors_url="https://www.google.com/calendar/ical/o8g0qs55aqausek3s2lrtc38eg%40group.calendar.google.com/private-15540e214eade3fdb30416d58c3b266c/basic.ics"
 )
 
 data = dict(
@@ -58,11 +57,11 @@ standings = dict(
 bot = dict(
     team_name="Chicago Bulls",
     timezone='America/Los_Angeles',
-    non_game_day_update_freq=60 * 60 * 10, # every 10 hours on non-game days
-    game_day_update_freq=60 * 60, # every hour on game days
-    near_game_update_freq=60 * 5, # every 5 minutes as we approach game time
-    game_time_update_freq=60 * 1.5, # every 1.5 minutes once the game has started
-    game_thread_create_time=60 * 60          # how many seconds before tip-off should game threads be created
+    non_game_day_update_freq=60 * 60 * 10,   # every 10 hours on non-game days
+    game_day_update_freq=60 * 60,            # every hour on game days
+    near_game_update_freq=60 * 5,            # every 5 minutes as we approach game time
+    game_time_update_freq=60 * 1.5,          # every 1.5 minutes once the game has started
+    game_thread_create_time=60 * 60         # how many seconds before tip-off should game threads be created
 )
 
 schedule = dict(
