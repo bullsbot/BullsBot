@@ -14,6 +14,7 @@ import settings
 import utils
 import nba_game_scraper
 import nba_standings_scraper
+import schedule_bot
 from standings_formatter import StandingsFormatter
 
 log_date_fmt = '%y-%m-%d %X %Z'
@@ -211,15 +212,16 @@ class bulls_bot(object):
         game_data = None
         scoreboard = self.load_json_scoreboard_data()
         games = scoreboard.get(settings.data['games_tree'])
-        team_key = self.team_dict[self.teamName]['short_name']
-        for game_dict in games:
-            game = utils.dotdictify(game_dict)
-            if team_key == game.get('home.team_key') or team_key == game['visitor.team_key']:
-                game_data = game
-                break
-        if game_data is not None:
-            for func_name, func in settings.data['add_to_game'].items():
-                game[func_name] = func(game)
+        if games is not None:
+            team_key = self.team_dict[self.teamName]['short_name']
+            for game_dict in games:
+                game = utils.dotdictify(game_dict)
+                if team_key == game.get('home.team_key') or team_key == game['visitor.team_key']:
+                    game_data = game
+                    break
+            if game_data is not None:
+                for func_name, func in settings.data['add_to_game'].items():
+                    game[func_name] = func(game)
         return game_data
 
     def is_game_vevent(self, vevent):
@@ -230,20 +232,18 @@ class bulls_bot(object):
     def load_gameday_info(self):
         # todo: create gameday_info class
         current_local_datetime = datetime.now(self.bot_timezone)
-        current_local_date = current_local_datetime.date()
-        cal = self.get_cal()
         is_game_day = False
-        for event in cal.vevent_list:
-            if self.is_game_vevent(event) and type(event.dtstart.value) is datetime:
-                local_game_time = event.dtstart.value.astimezone(self.bot_timezone)
-                if local_game_time.date() == current_local_date:
-                    is_game_day = True
-                    self.game_day_info = {
-                        "local_game_time": local_game_time,
-                        "game_vevent": event
-                    }
-                    break
-                    # reset to none if it's not a gameday
+        game_data = self.load_json_game_data()
+        if game_data is not None:
+            full_timestamp = time.mktime(time.strptime(game_data.date + game_data.time, "%Y%m%d%H%M"))
+            datet = pytz.timezone('America/New_York').localize(datetime.fromtimestamp(full_timestamp))
+            local_game_time = datet.astimezone(self.bot_timezone)
+            is_game_day = True
+            self.game_day_info = {
+                "local_game_time": local_game_time,
+                "game_data": game_data
+            }
+        # reset to none if it's not a gameday
         if not is_game_day:
             self.game_day_info = None
             # log that we just checked
@@ -318,9 +318,7 @@ class bulls_bot(object):
 
         return is_game_day
 
-    def all_schedule_maker(self):
-        return self.schedule_maker()
-
+    # todo: move to schedule bot
     def schedule_maker(self, startDate=datetime(2013, 1, 1), endDate=datetime(2025, 1, 1), max_events=100):
         """
         make schedule for a date range and max number of events
@@ -562,7 +560,7 @@ class bulls_bot(object):
                 current_update_freq = self.get_seconds_till_game()
                 # make sure the soonest we can update is in 30 seconds
         return max(current_update_freq, 30)
-
+    # todo: move to schedule bot
     def generate_default_schedule(self):
         self.logger.info("generating default schedule")
         begin_date = None
@@ -600,24 +598,15 @@ class bulls_bot(object):
 
         return self.schedule_maker(startDate=begin_date, max_events=self.max_events_to_display)
 
-    def update_schedule(self, schedule=None):
+    def update_schedule(self):
         self.logger.info("begin updating schedule ... ")
-        if schedule is None:
-            schedule = self.generate_default_schedule()
-            # make sure we're logged in (and if not, log in)
         if self.authenticate_reddit():
-            #Get the sidebar
-            # settings=r.get_settings(self.team_dict[self.teamName]['sub'])
             self.logger.info("fetching subreddit settings")
             settings = self.reddit.get_settings(self.subreddit)
-            description_markup = settings['description']
             self.logger.info("updating subreddit settings with schedule")
-            before_sched_start = description_markup.split(self.sidebar_schedule_start_string, 1)[0]
-            after_sched_start = description_markup.split(self.sidebar_schedule_start_string, 1)[1]
-            after_sched_end = after_sched_start.split(self.sidebar_schedule_end_string, 1)[1]
-            settings['description'] = before_sched_start + self.sidebar_schedule_start_string + "\n" + schedule + \
-                                      self.sidebar_schedule_end_string + after_sched_end
-            settings = self.reddit.get_subreddit(self.subreddit).update_settings(description=settings['description'])
+            updated_sidebar = schedule_bot.replace_schedule_in_sidebar(settings['description'], 'bulls', 'CHI')
+            self.reddit.get_subreddit(self.subreddit).update_settings(description=updated_sidebar)
+
             local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
             formated_time = datetime.now(local_timezone).strftime("%I:%M %p")
             responses = ["Thibs would be proud of this hustle! Updated that schedy sched for u at around ",
@@ -1065,8 +1054,7 @@ def schedule_schedule_updates():
             if settings.standings['update_standings']:
                 bot.update_standings_sidebar()                      # update standings in sidebar if necessary
             if settings.schedule['update_schedule']:
-                schedule = bot.generate_default_schedule()          # get schedule
-                bot.update_schedule(schedule)                       # update schedule in sidebar
+                bot.update_schedule()                               # update schedule in sidebar
             update_freq = bot.get_current_update_freq()             # figure out when to update again
             consecutive_error_count = 0
         except KeyboardInterrupt, e:
@@ -1084,7 +1072,7 @@ def schedule_schedule_updates():
                 run_updates = False
                 update_freq = 0
                 raise
-        logging.info("sleeping for " + str(update_freq / 60.0) + " minutes ... ... ...")
+        logging.info("sleeping for " + str(timedelta(seconds=update_freq)) + " ... ... ...")
         time.sleep(update_freq)
 
 

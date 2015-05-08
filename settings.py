@@ -1,5 +1,6 @@
 from datetime import datetime
 import time
+import pytz
 
 """
 Settings for bullsbot. Note that this is a python file, so have at it! ... but if it's not python the bot won't load.
@@ -21,8 +22,8 @@ data = dict(
 
     # these functions calculate a string given the game object. This output string gets added to the game object
     add_to_game=dict(
-        game_datetime=lambda game: datetime.fromtimestamp(
-            time.mktime(time.strptime(game['home_start_date'] + game['home_start_time'], '%Y%m%d%H%M'))),
+        game_datetime=lambda game: pytz.timezone('US/Eastern').localize(datetime.fromtimestamp(
+            time.mktime(time.strptime(game['home_start_date'] + game['home_start_time'], '%Y%m%d%H%M')))),
         series_leader=lambda game: (
             game["visitor.team_key"] + ' leads series ' + game['playoffs.visitor_wins'] + '-' + game['playoffs.home_wins']
             if int(game['playoffs.visitor_wins']) > int(game['playoffs.home_wins'])
@@ -57,20 +58,22 @@ standings = dict(
 bot = dict(
     team_name="Chicago Bulls",
     timezone='America/Los_Angeles',
-    non_game_day_update_freq=60 * 60 * 10,   # every 10 hours on non-game days
-    game_day_update_freq=60 * 60,            # every hour on game days
-    near_game_update_freq=60 * 5,            # every 5 minutes as we approach game time
-    game_time_update_freq=60 * 1.5,          # every 1.5 minutes once the game has started
+    non_game_day_update_freq=60 * 60 * 10, # every 10 hours on non-game days
+    game_day_update_freq=60 * 60, # every hour on game days
+    near_game_update_freq=60 * 5, # every 5 minutes as we approach game time
+    game_time_update_freq=60 * 1.5, # every 1.5 minutes once the game has started
     game_thread_create_time=60 * 60         # how many seconds before tip-off should game threads be created
 )
 
 schedule = dict(
-    update_schedule=False,
+    update_schedule=True,
     max_events_to_display=14,
     prior_events_to_display=3,
     min_events_to_display=10,
     sidebar_schedule_start_string="* **Schedule**",
     sidebar_schedule_end_string="\n\n",
+    markdown_template_file="schedule.markdown",
+    game_dates_url="http://www.nba.com/gameline/{}/",
     event_fmt="[{event_title}]({event_hashtag}) [{month_day}](#DESC)\n",
     past_game_fmt="[{game_status}](#STATUS) [{away_team_short}](#TEAM) [{away_score}](#SCORE) [{home_team_short}](#TEAM2) [{home_score}](#SCORE2) [{month_day}](#DATE)\n",
     current_game_fmt="[{game_status}](#STATUS) [{away_team_short}](#TEAM) [{away_score}](#SCORE) [{home_team_short}](#TEAM2) [{home_score}](#SCORE2) [{month_day}](#DATE)\n",
@@ -89,7 +92,7 @@ thread = dict(
     pre_game_date_fmt="%A***%b %d***%Y",
     current_game_thread_fmt="HOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *VERSUS* *[BOX SCORE](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html#nbaGIboxscore)*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n\n[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* {broadcast}|[](#empty)\n[](#empty)|*STREAMS* TBD|[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)|[](#empty)\n",
     current_game_thread_split_text="[](#empty)|INFORMATION",
-    game_thread_title_fmt="PLAYOFFS GAME 1: {home_team_name} vs. {away_team_name}",
+    game_thread_title_fmt="GAME THREAD: {home_team_name} vs. {away_team_name}",
     game_thread_title_date_fmt="%b %d, %Y",
     playoff_pre_game_thread_title_fmt="PRE GAME: {visitor.city} {visitor.nickname} vs. {home.city} {home.nickname} [{series_leader}]",
     playoff_game_thread_title_fmt="PLAYOFFS GAME {playoffs.game_number}: {visitor.city} {visitor.nickname} vs. {home.city} {home.nickname} [{series_leader}]",
@@ -98,4 +101,9 @@ thread = dict(
         pre='pregame',
         post='postgame'
     )
+)
+
+jinja = dict(
+    loader='jinja_loader',
+    templates_folder='templates'
 )
