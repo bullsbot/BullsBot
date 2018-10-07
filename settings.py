@@ -4,12 +4,12 @@ Remember to use \n for new lines in your markdown.
 """
 reddit = dict(
     username='BullsBot',
-    # subreddit='chicagobulls'
+    subreddit='chicagobulls'
 )
 
 calendar = dict(
     no_date_flag="#NODATE",
-    url="https://www.google.com/calendar/ical/chicagobullsbot%40gmail.com/private-48b0043bc03da315706a2ca595c0e63b/basic.ics",
+    url="https://calendar.google.com/calendar/ical/rlj9ovepenpevlf0rrsgc359fc%40group.calendar.google.com/private-081c866936df070f14242923b4e1bbc3/basic.ics",
 )
 
 team = dict(
@@ -44,8 +44,8 @@ schedule = dict(
     min_events_to_display=10,
     sidebar_schedule_start_string="> ",   # the schedule begins after this line(s)
     sidebar_schedule_end_string="\n\n",     # and ends just before this line(s)
-    # event_fmt is for events in the calendar like [NBA Draft]{#DRAFT} [MONTH DAY]{#DESC}
-    event_fmt="[{event_title}]({event_hashtag}) [{month_day}](#DESC)\n",
+    # event_fmt is for events in the calendar like [NBA Draft]{#DRAFT} [MONTH DAY]{#D}
+    event_fmt="[{event_title}]({event_hashtag}) [{month_day}](#D)\n",
     # GAME FMT OPTIONS:
     # {away_score} {away_team_short}
     # {home_score} {home_team_short} {month_day} {game_status} {game_time_local}
