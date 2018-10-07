@@ -13,7 +13,7 @@ reddit = dict(
 
 calendar = dict(
     no_date_flag="#NODATE",
-    url="https://calendar.google.com/calendar/ical/rlj9ovepenpevlf0rrsgc359fc%40group.calendar.google.com/private-081c866936df070f14242923b4e1bbc3/basic.ics",
+    url="https://calendar.google.com/calendar/ical/1kf598v0b73ptk7stgviv63hpc%40group.calendar.google.com/private-d51af06af72e03e2a5fbaa150ee627c6/basic.ics",
 )
 
 data = dict(
