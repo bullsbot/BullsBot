@@ -1,5 +1,6 @@
 import logging
-import urllib2
+from urllib.request import urlopen
+import urllib.error
 from bs4 import BeautifulSoup
 import socket
 
@@ -9,22 +10,18 @@ logger = logging.getLogger('NSS')
 def scrape_standings(group="division"):
     logger.info("begin standings scrape")
     urls = dict(
-        conference="http://www.nba.com/standings/team_record_comparison/conferenceNew_Std_Cnf.html",
-        division="http://www.nba.com/standings/team_record_comparison/conferenceNew_Std_Div.html")
+        conference="",
+        division="")
     try:
-        standings_html = urllib2.urlopen(urls[group], timeout=5).read()
-    except urllib2.URLError, e:
+        standings_html = urlopen(urls[group], timeout=2).read()
+    except urllib.error.HTTPError as e:
         if isinstance(e.reason, socket.timeout):
             # try once again
             logger.warning("timeout, trying again")
-            standings_html = urllib2.urlopen(urls[group], timeout=15).read()
+            standings_html = urlopen(urls[group], timeout=3).read()
         else:
             logger.error(e)
             raise
-    except socket.timeout:
-        # For Python 2.7
-        logger.warning("timeout, trying again")
-        standings_html = urllib2.urlopen(urls[group], timeout=15).read()
 
     soup = BeautifulSoup(standings_html.replace('<html class="ie9">', '').replace('<html class="ie8">', ''))
     teams = soup.select('td.team > a')

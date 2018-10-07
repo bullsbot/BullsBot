@@ -8,12 +8,12 @@ Remember to use \n for new lines in your markdown.
 """
 reddit = dict(
     username='BullsBot',
-    # subreddit='chicagobulls'
+    subreddit='chicagobulls'
 )
 
 calendar = dict(
     no_date_flag="#NODATE",
-    url="https://www.google.com/calendar/ical/chicagobullsbot%40gmail.com/private-48b0043bc03da315706a2ca595c0e63b/basic.ics",
+    url="https://calendar.google.com/calendar/ical/rlj9ovepenpevlf0rrsgc359fc%40group.calendar.google.com/private-081c866936df070f14242923b4e1bbc3/basic.ics",
 )
 
 data = dict(
@@ -47,21 +47,24 @@ team = dict(
 )
 
 standings = dict(
-    update_standings=False,
-    standings_grouping="conference",
-    sidebar_standings_start_string="####**Playoffs Seeding**\nWest|W/L|GB|East|W/L|GB\n:--|:--:|:--:|:--|:--:|:--:\n",
+    standings_grouping="conference",    # 'conference' or 'division'
+    # we look for these two strings in the sidebar,
+    # then replace anything between them with the standings format
+    sidebar_standings_start_string="#####**Standings**\nWest|W/L|GB|East|W/L|GB\n:--|:--:|:--:|:--|:--:|:--:\n",
     sidebar_standings_end_string="\n\n",
+    # format for the division standings
     division_standings_format="[](#{short_name}){med_name}|{wins}|{losses}|{percent}\n",
+    # format for a team in the conference standings (east and west are shown side by side)
     conference_standings_format="*{rank}*[](#{short_name})|{wins}-{losses}|{behind}"
 )
 
 bot = dict(
-    team_name="Chicago Bulls",
-    timezone='America/Los_Angeles',
-    non_game_day_update_freq=60 * 60 * 10, # every 10 hours on non-game days
-    game_day_update_freq=60 * 60, # every hour on game days
-    near_game_update_freq=60 * 5, # every 5 minutes as we approach game time
-    game_time_update_freq=60 * 1.5, # every 1.5 minutes once the game has started
+    team_name="Chicago Bulls",               # must match a team in teams.csv
+    timezone='America/Los_Angeles',          # time zone name (see wikipedia.org/wiki/List_of_tz_database_time_zones)
+    non_game_day_update_freq=60 * 60 * 10,   # every 10 hours on non-game days
+    game_day_update_freq=60 * 60,            # every hour on game days
+    near_game_update_freq=60 * 5,            # every 5 minutes as we approach game time
+    game_time_update_freq=60 * 1.5,          # every 1.5 minutes once the game has started
     game_thread_create_time=60 * 60         # how many seconds before tip-off should game threads be created
 )
 
@@ -70,25 +73,36 @@ schedule = dict(
     max_events_to_display=14,
     prior_events_to_display=3,
     min_events_to_display=10,
-    sidebar_schedule_start_string="* **Schedule**",
-    sidebar_schedule_end_string="\n\n",
-    markdown_template_file="schedule.markdown",
-    game_dates_url="http://www.nba.com/gameline/{}/",
-    event_fmt="[{event_title}]({event_hashtag}) [{month_day}](#DESC)\n",
-    past_game_fmt="[{game_status}](#STATUS) [{away_team_short}](#TEAM) [{away_score}](#SCORE) [{home_team_short}](#TEAM2) [{home_score}](#SCORE2) [{month_day}](#DATE)\n",
-    current_game_fmt="[{game_status}](#STATUS) [{away_team_short}](#TEAM) [{away_score}](#SCORE) [{home_team_short}](#TEAM2) [{home_score}](#SCORE2) [{month_day}](#DATE)\n",
-    future_game_fmt="[{month_day}](#STATUS) [{away_team_short}](#TEAM) [](#SCORE) [{home_team_short}](#TEAM2) [](#SCORE2) [{game_time_local}](#DATE)\n",
+    sidebar_schedule_start_string="> ",   # the schedule begins after this line(s)
+    sidebar_schedule_end_string="\n\n",     # and ends just before this line(s)
+    # event_fmt is for events in the calendar like [NBA Draft]{#DRAFT} [MONTH DAY]{#D}
+    event_fmt="[{event_title}]({event_hashtag}) [{month_day}](#D)\n",
+    # GAME FMT OPTIONS:
+    # {away_score} {away_team_short}
+    # {home_score} {home_team_short} {month_day} {game_status} {game_time_local}
+    # FYI: the winning team will get ** around their 'team_short'
+    past_game_fmt="[{away_team_short}](#T1)[{away_score}](#S1)[{home_team_short}](#T2)[{home_score}](#S2)[FINAL](#ST)[{month_day}](#DT)\n",
+    current_game_fmt="[{away_team_short}](#T1)[{away_score}](#S1)[{home_team_short}](#T2)[{home_score}](#S2)[{game_status}](#ST)[{month_day}](#DT)\n",
+    future_game_fmt="[{away_team_short}](#T1)[](#S1)[{home_team_short}](#T2)[](#S2)[{month_day}](#ST)[{game_time_local}](#DT)\n",
+    # game_thread_link is added before past_game_fmt and current_game_fmt
     game_thread_link_fmt="[]({link})",
-    event_markdown_pre=" - ", # goes before each game/event
-    event_markdown_post="", # goes after each game/event
+    event_markdown_pre=" - ",   # goes before each game/event
+    event_markdown_post="",     # goes after each game/event
 )
 
 thread = dict(
-    create_game_threads=True,
+    # POST GAME THREAD OPTIONS:
+    # {home_team_short} {home_team_name} {home_team_win_loss} {home_score} {full_date} {link_date}
+    # {home_team_short} {away_team_name} {away_team_win_loss} {away_score}
     post_game_thread_fmt="HOME TEAM|FINAL SCORE|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *{full_date}* *[BOX SCORE](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html#nbaGIboxscore)*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n",
-    post_game_thread_title_fmt="POST GAME: {sub_team_name} {beat_or_lose} {non_sub_team_name}",
-    pre_game_thread_fmt="HOME TEAM|INFORMATION|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|*{full_date}*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n\n[](#empty)|DETAILED OVERVIEW|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* {broadcast}|[](#empty)\n[](#empty)|*GAME TIMES* [Eastern: {game_time_eastern}](#TIME) / [Central: {game_time_central}](#TIME) / [Mountain: {game_time_mountain}](#TIME) / [Pacific:  {game_time_pacific}](#TIME)|[](#empty)\n[](#empty)|*MISC/NOTES* [Game Story](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html)|[](#empty)\n[](#empty)|*SUBREDDITS* /r/{home_subreddit} / /r/{away_subreddit}|[](#empty)\n",
-    pre_game_thread_title_fmt="PRE GAME: {home_team_name} vs. {away_team_name} ",
+
+    # POST GAME THREAD TITLE OPTIONS:
+    # {sub_team_name} {sub_team_win_loss} {sub_score} {beat_or_lose}
+    # {non_sub_team_name} {non_sub_team_win_loss} {non_sub_score}
+    post_game_thread_title_fmt="POST GAME: {sub_team_name} ({sub_team_win_loss}) {beat_or_lose} {non_sub_team_name} ({non_sub_team_win_loss}) ({sub_score}-{non_sub_score})",
+    # just add any timezone and it'll be replaced by the time in
+    pre_game_thread_fmt="----\n- [](#{home_team_short})\n- [{home_team_name}](#HT) [{home_team_win_loss}](#HR) /r/{home_subreddit}\n- [VS.](#VS)\n- [{away_team_name}](#AT) [{away_team_win_loss}](#AR) /r/{away_subreddit}\n- [](#{away_team_short})\n\n----\n----\n- *Gametime* [Box score](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html#nbaGIboxscore) [Game story](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html)\n- [](#US)[*Eastern:***{US/Eastern}**](#TM) [*Central:***{US/Central}**](#TM) [*Mountain:***{US/Mountain}**](#TM) [*Pacific:***{US/Pacific}**](#TM)\n- [](#EU) [*UK:***{Europe/London}**](#TM) [*CET:***{Europe/Paris}**](#TM) [*GMT+2:***{Europe/Helsinki}**](#TM) [*GMT+3:***{Europe/Minsk}**](#TM)\n\n----\n- *Location:* {location}\n- *Broadcast:* {broadcast}\n- *Discuss:* [Reddit Stream](http://reddit-stream.com/)",
+    pre_game_thread_title_fmt="PRE GAME: {home_team_name} vs. {away_team_name} ({month_day_year})",
     pre_game_date_fmt="%A***%b %d***%Y",
     current_game_thread_fmt="HOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *VERSUS* *[BOX SCORE](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html#nbaGIboxscore)*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n\n[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* {broadcast}|[](#empty)\n[](#empty)|*STREAMS* TBD|[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)|[](#empty)\n",
     current_game_thread_split_text="[](#empty)|INFORMATION",
@@ -101,9 +115,4 @@ thread = dict(
         pre='pregame',
         post='postgame'
     )
-)
-
-jinja = dict(
-    loader='jinja_loader',
-    templates_folder='templates'
 )
