@@ -7,12 +7,10 @@ import getpass
 import vobject
 import pytz
 from urllib.request import urlopen
-import json
 import praw
 import prawcore
 from random import randrange
 import settings
-import utils
 import nba_game_scraper
 import nba_standings_scraper
 import util
@@ -27,7 +25,7 @@ logging.basicConfig(level=logging.DEBUG,
                     filemode='a')
 # define a Handler which writes INFO messages or higher to the sys.stderr
 console = logging.StreamHandler()
-console.setLevel(logging.DEBUG)
+console.setLevel(logging.INFO)
 # set a format for console use
 formatter = logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s', datefmt=log_date_fmt)
 # tell the handler to use this format
@@ -202,26 +200,6 @@ class bulls_bot(object):
         if tmp_standings and tmp_standings is not None:
             self.latest_standings = tmp_standings
 
-    def load_json_scoreboard_data(self):
-        url = settings.data['scoreboard_url'].format(date=datetime.now(self.bot_timezone))
-        return utils.dotdictify(json.loads(urllib2.urlopen(url, timeout=2).read()))
-
-    def load_json_game_data(self):
-        game_data = None
-        scoreboard = self.load_json_scoreboard_data()
-        games = scoreboard.get(settings.data['games_tree'])
-        if games is not None:
-            team_key = self.team_dict[self.teamName]['short_name']
-            for game_dict in games:
-                game = utils.dotdictify(game_dict)
-                if team_key == game.get('home.team_key') or team_key == game['visitor.team_key']:
-                    game_data = game
-                    break
-            if game_data is not None:
-                for func_name, func in settings.data['add_to_game'].items():
-                    game[func_name] = func(game)
-        return game_data
-
     def is_game_vevent(self, vevent):
         # simple and stupid for now
         # return vevent.summary.valueRepr().find(self.event_flag) == -1
@@ -230,6 +208,8 @@ class bulls_bot(object):
     def load_gameday_info(self):
         # todo: create gameday_info class
         current_local_datetime = datetime.now(self.bot_timezone)
+        current_local_date = current_local_datetime.date()
+        cal = self.get_cal()
         is_game_day = False
         for event in cal.vevent_list:
             if self.is_game_vevent(event) and type(event.dtstart.value) is datetime:
@@ -315,7 +295,9 @@ class bulls_bot(object):
 
         return is_game_day
 
-    # todo: move to schedule bot
+    def all_schedule_maker(self):
+        return self.schedule_maker()
+
     def schedule_maker(self, startDate=datetime(2013, 1, 1), endDate=datetime(2025, 1, 1), max_events=100):
         """
         make schedule for a date range and max number of events
@@ -557,7 +539,7 @@ class bulls_bot(object):
                 current_update_freq = self.get_seconds_till_game()
                 # make sure the soonest we can update is in 30 seconds
         return max(current_update_freq, 30)
-    # todo: move to schedule bot
+
     def generate_default_schedule(self):
         self.logger.info("generating default schedule")
         begin_date = None
@@ -595,9 +577,14 @@ class bulls_bot(object):
 
         return self.schedule_maker(startDate=begin_date, max_events=self.max_events_to_display)
 
-    def update_schedule(self):
+    def update_schedule(self, schedule=None):
         self.logger.info("begin updating schedule ... ")
+        if schedule is None:
+            schedule = self.generate_default_schedule()
+            # make sure we're logged in (and if not, log in)
         if self.authenticate_reddit():
+            #Get the sidebar
+            # settings=r.get_settings(self.team_dict[self.teamName]['sub'])
             self.logger.info("fetching subreddit settings")
             settings = self.reddit.subreddit(self.subreddit).mod.settings()
             description_markup = settings['description']
@@ -909,17 +896,14 @@ class bulls_bot(object):
                         game_time_mountain=game_time_mountain,
                         game_time_pacific=game_time_pacific
                     )
-                    if playoffs:
-                        pregame_thread_title = settings.thread['playoff_pre_game_thread_title_fmt'].format(**nba_game_data)
-                    else:
-                        # format the title with game data
-                        pregame_thread_title = self.pre_game_thread_title_fmt.format(
-                            home_team_name=home_team_info['long_name'],
-                            home_team_win_loss=home_team_standings['wins'] + '-' + home_team_standings['losses'],
-                            away_team_name=away_team_info['long_name'],
-                            away_team_win_loss=away_team_standings['wins'] + '-' + away_team_standings['losses'],
-                            month_day_year=local_game_time.strftime(self.game_thread_title_date_fmt)
-                        )
+                    # format the title with game data
+                    pregame_thread_title = self.pre_game_thread_title_fmt.format(
+                        home_team_name=home_team_info['long_name'],
+                        home_team_win_loss=home_team_standings['wins'] + '-' + home_team_standings['losses'],
+                        away_team_name=away_team_info['long_name'],
+                        away_team_win_loss=away_team_standings['wins'] + '-' + away_team_standings['losses'],
+                        month_day_year=local_game_time.strftime(self.game_thread_title_date_fmt)
+                    )
                     success = self.post_new_or_update_game_thread(pregame_thread_markup,
                                                                   pregame_thread_title, 'pre')
 
@@ -985,8 +969,6 @@ class bulls_bot(object):
                             sub_score=our_score,
                             non_sub_score=their_score
                         )
-                        if playoffs:
-                            postgame_thread_title = postgame_thread_title + " [{series_leader}]".format(**nba_game_data)
                         success = self.post_new_or_update_game_thread(postgame_thread_markup,
                                                                       postgame_thread_title, 'post')
 
@@ -1013,16 +995,13 @@ class bulls_bot(object):
                             broadcast=broadcast
                         )
                         # format the title with game data
-                        if playoffs:
-                            game_thread_title = settings.thread['playoff_game_thread_title_fmt'].format(**nba_game_data)
-                        else:
-                            game_thread_title = self.game_thread_title_fmt.format(
-                                home_team_name=home_team_info['long_name'],
-                                home_team_win_loss=home_team_standings['wins'] + '-' + home_team_standings['losses'],
-                                away_team_name=away_team_info['long_name'],
-                                away_team_win_loss=away_team_standings['wins'] + '-' + away_team_standings['losses'],
-                                month_day_year=local_game_time.strftime(self.game_thread_title_date_fmt)
-                            )
+                        game_thread_title = self.game_thread_title_fmt.format(
+                            home_team_name=home_team_info['long_name'],
+                            home_team_win_loss=home_team_standings['wins'] + '-' + home_team_standings['losses'],
+                            away_team_name=away_team_info['long_name'],
+                            away_team_win_loss=away_team_standings['wins'] + '-' + away_team_standings['losses'],
+                            month_day_year=local_game_time.strftime(self.game_thread_title_date_fmt)
+                        )
                         # post or update game thread
                         success = self.post_new_or_update_game_thread(game_thread_markup, game_thread_title, 'game')
 
@@ -1069,7 +1048,6 @@ def schedule_schedule_updates():
             # bot.generate_or_update_game_thread_if_necessary()     # update or create game threads if necessary
             # bot.update_standings_sidebar()                        # update standings in sidebar if necessary
             schedule = bot.generate_default_schedule()            # get schedule
-            print(schedule)
             bot.update_schedule(schedule)                         # update schedule in sidebar
             update_freq = bot.get_current_update_freq()           # figure out when to update again
             consecutive_error_count = 0
@@ -1088,7 +1066,7 @@ def schedule_schedule_updates():
                 run_updates = False
                 update_freq = 0
                 raise
-        logging.info("sleeping for " + str(timedelta(seconds=update_freq)) + " ... ... ...")
+        logging.info("sleeping for " + str(update_freq / 60.0) + " minutes ... ... ...")
         time.sleep(update_freq)
 
 
