@@ -1,5 +1,6 @@
-beautifulsoup4==4.3.2
-praw==2.1.20
-pytz==2014.10
+beautifulsoup4==4.5.3
+praw==6.0.0
+pytz==2018.5
 vobject==0.9.5
-jinja2==2.7.3
+Jinja2==2.10
+prawcore==1.0.0
