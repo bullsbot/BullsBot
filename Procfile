@@ -1,1 +1,1 @@
-web: python bulls_bot.py
+worker: python bulls_bot.py
