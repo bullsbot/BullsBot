@@ -15,14 +15,14 @@ class dotdictify(dict):
                 # print key
                 self.__setitem__(key, value[key])
         else:
-            raise TypeError, 'expected dict'
+            raise TypeError('expected dict')
 
     def __setitem__(self, key, value):
         if key is not None and '.' in key:
             myKey, restOfKey = key.split('.', 1)
             target = self.setdefault(myKey, dotdictify())
             if not isinstance(target, dotdictify):
-                raise KeyError, 'cannot set "%s" in "%s" (%s)' % (restOfKey, myKey, repr(target))
+                raise KeyError('cannot set "%s" in "%s" (%s)' % (restOfKey, myKey, repr(target)))
             target[restOfKey] = value
         else:
             if isinstance(value, dict) and not isinstance(value, dotdictify):
@@ -35,7 +35,7 @@ class dotdictify(dict):
         myKey, restOfKey = key.split('.', 1)
         target = dict.__getitem__(self, myKey)
         if not isinstance(target, dotdictify):
-            raise KeyError, 'cannot get "%s" in "%s" (%s)' % (restOfKey, myKey, repr(target))
+            raise KeyError('cannot get "%s" in "%s" (%s)' % (restOfKey, myKey, repr(target)))
         return target[restOfKey]
 
     def __contains__(self, key):
