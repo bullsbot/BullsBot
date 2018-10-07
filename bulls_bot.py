@@ -1,4 +1,4 @@
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 
 import logging
 from datetime import datetime, timedelta, time as dttime
@@ -6,13 +6,15 @@ import time
 import getpass
 import vobject
 import pytz
-import urllib2
+from urllib.request import urlopen
 import praw
+import prawcore
 from random import randrange
 import settings
 import nba_game_scraper
 import nba_standings_scraper
 import util
+import os
 from standings_formatter import StandingsFormatter
 
 log_date_fmt = '%y-%m-%d %X %Z'
@@ -50,28 +52,25 @@ class bulls_bot(object):
         self.logger = logging.getLogger('BB')
         # username
         if 'username' not in settings.reddit:
-            self.username = raw_input('Reddit Username: ')
+            self.username = input('Reddit Username: ')
         else:
             self.username = settings.reddit['username']
             self.logger.info("Reddit Username: {}".format(self.username))
             # sub
         if 'subreddit' not in settings.reddit:
-            self.subreddit = raw_input('Subreddit (e.g. chicagobulls, not /r/chicagobulls): ')
+            self.subreddit = input('Subreddit (e.g. chicagobulls, not /r/chicagobulls): ')
         else:
             self.subreddit = settings.reddit['subreddit']
             self.logger.info("Reddit Subreddit: {}".format(self.subreddit))
 
-        # password
-        self.password = getpass.getpass('Reddit Password: ')
-
         # bot
         self.reddit = None
-        self.userAgent = 'BullsBot/v0.0.2 by ' + self.username
+        self.userAgent = 'BullsBot/v0.0.3 by ' + self.username
 
         # check that the username and password work, if not die now!
         if not self.authenticate_reddit():
             self.logger.info("Could not login to reddit with " + self.username)
-            raise praw.errors.LoginRequired("bulls_bot")
+            raise praw.exceptions.LoginRequired("bulls_bot")
         else:
             self.logger.info(self.username + ' successfully logged in.')
 
@@ -152,12 +151,11 @@ class bulls_bot(object):
         try:
             if self.reddit is None:
                 #Initiate PRAW
-                self.reddit = praw.Reddit(user_agent=self.userAgent)
-                self.reddit.config.decode_html_entities = True
-
-            if not self.reddit.is_logged_in():
-                #Log in to Reddit
-                self.reddit.login(self.username, self.password)
+                self.reddit = praw.Reddit(
+                    client_id=os.environ['client_id'],
+                    client_secret=os.environ['client_secret'],
+                    refresh_token=os.environ['refresh_token'],
+                    user_agent=self.userAgent)
 
             authenticated = True
         except:
@@ -167,7 +165,7 @@ class bulls_bot(object):
     def get_cal(self):
         """ get calendar from url
         """
-        calendarContent = urllib2.urlopen(self.calendarURL).read()
+        calendarContent = urlopen(self.calendarURL).read().decode("utf-8")
         cal = vobject.readOne(calendarContent)
         return cal
 
@@ -240,7 +238,7 @@ class bulls_bot(object):
     def is_game_over(self):
         return self.game_day_info is not None \
                    and 'current_status' in self.game_day_info \
-            and (self.game_day_info['current_status'] == 'RECAP' or self.game_day_info['current_status'] == 'RECAPOT')
+            and (self.game_day_info['current_status'] == 'FINAL')
 
     def is_the_game_on_now(self):
         local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
@@ -262,13 +260,12 @@ class bulls_bot(object):
                     if key.find(self.team_dict[self.teamName]['short_name']) is not -1:
                         game_found = True
                         self.game_day_info['current_status'] = value['current_status']
-                        if value['current_status'] == 'LIVE' or value['current_status'] == 'LIVEOT':
+                        if value['current_status'] == 'LIVE':
                             is_game_live = True
                         break
                         # if the scraper couldn't find the game (a possibility with nba.com)
                         # and the last status wasn't FINAL, assume it's still on
-                if not game_found and (self.game_day_info['current_status'] != 'RECAP' or
-                                               self.game_day_info['current_status'] != 'RECAPOT'):
+                if not game_found and (self.game_day_info['current_status'] != 'FINAL'):
                     is_game_live = True
         return is_game_live
 
@@ -452,11 +449,11 @@ class bulls_bot(object):
                 # if game start time has passed and we're in the middle of the game
             #  and the game is not listed as live or final or postponed, raise error
             if chiDateTime < datetime.now(timezone) and self.game_day_info is not None \
-                and (self.game_day_info['current_status'] == 'LIVE' or self.game_day_info['current_status'] == 'LIVEOT') \
-                and not (game_data['current_status'] == "LIVE" or game_data['current_status'] == "LIVEOT"
-                         or game_data['current_status'] == "RECAP" or game_data['current_status'] == "RECAPOT"
+                and (self.game_day_info['current_status'] == 'LIVE') \
+                and not (game_data['current_status'] == "LIVE"
+                         or game_data['current_status'] == "FINAL"
                          or game_data['current_status'] == "PPD"):
-                raise AssertionError('no LIVE, LIVEOT, RECAP, RECAPOT or PPD status on game with start time in past')
+                raise AssertionError('no LIVE, FINAL, or PPD status on game with start time in past')
 
         else:
             # otherwise, skip scrapping the game info
@@ -476,7 +473,7 @@ class bulls_bot(object):
         except TypeError:
             has_scores = False
 
-        if has_scores and (game_data['current_status'] == "RECAP" or game_data['current_status'] == "RECAPOT"):
+        if has_scores and (game_data['current_status'] == "FINAL"):
             return self.past_game_fmt.format(game_status=game_data['game_status'].upper(),
                                              game_time_local=game_time_local,
                                              home_team_short=home_format.format(home_team_short),
@@ -492,7 +489,7 @@ class bulls_bot(object):
                                              home_score="",
                                              away_score="",
                                              month_day=month_day)
-        elif has_scores and (game_data['current_status'] == "LIVE" or game_data['current_status'] == "LIVEOT"):
+        elif has_scores and (game_data['current_status'] == "LIVE"):
             return self.current_game_fmt.format(game_status=game_data['game_status'].upper(),
                                                 game_time_local=game_time_local,
                                                 home_team_short=home_format.format(home_team_short),
@@ -589,7 +586,7 @@ class bulls_bot(object):
             #Get the sidebar
             # settings=r.get_settings(self.team_dict[self.teamName]['sub'])
             self.logger.info("fetching subreddit settings")
-            settings = self.reddit.get_settings(self.subreddit)
+            settings = self.reddit.subreddit(self.subreddit).mod.settings()
             description_markup = settings['description']
             self.logger.info("updating subreddit settings with schedule")
             before_sched_start = description_markup.split(self.sidebar_schedule_start_string, 1)[0]
@@ -597,7 +594,7 @@ class bulls_bot(object):
             after_sched_end = after_sched_start.split(self.sidebar_schedule_end_string, 1)[1]
             settings['description'] = before_sched_start + self.sidebar_schedule_start_string + "\n" + schedule + \
                                       self.sidebar_schedule_end_string + after_sched_end
-            settings = self.reddit.get_subreddit(self.subreddit).update_settings(description=settings['description'])
+            settings = self.reddit.subreddit(self.subreddit).mod.update(description=settings['description'])
             local_timezone = pytz.timezone(self.team_dict[self.teamName]['timezone'])
             formated_time = datetime.now(local_timezone).strftime("%I:%M %p")
             responses = ["Thibs would be proud of this hustle! Updated that schedy sched for u at around ",
@@ -630,10 +627,11 @@ class bulls_bot(object):
             else:
                 query += " OR flair:'" + flair + "'"
         query += ")"
-        posts = subreddit.search(query=query, sort='new', period='all', limit='30')
+        posts = subreddit.search(query=query, sort='new', time_filter='all', limit=30)
         gtl = GameThreadLinks()
         found = False
         for post in posts:
+            print('1')
             if datetime.fromtimestamp(post.created_utc, local_timezone).date() == date:
                 # if right date
                 game_pre_post = None
@@ -678,7 +676,7 @@ class bulls_bot(object):
             and len(missing_game_thread_flairs) > 0 \
             and self.authenticate_reddit():
             # couldn't find link, let's find them
-            tmp_game_thread = self.findGameThreadsByDate(self.reddit.get_subreddit(self.subreddit),
+            tmp_game_thread = self.findGameThreadsByDate(self.reddit.subreddit(self.subreddit),
                                                          missing_game_thread_flairs, date.date(), local_timezone)
             # set missing game threads if found
             if game_thread is None and tmp_game_thread is not None:
@@ -763,7 +761,7 @@ class bulls_bot(object):
                 else:
                     # submit new game thread
                     self.logger.debug('submitting new game thread')
-                    game_thread_submission = self.reddit.get_subreddit(self.subreddit).submit(
+                    game_thread_submission = self.reddit.subreddit(self.subreddit).submit(
                         text=game_thread_markup,
                         title=game_thread_title
                     )
@@ -784,7 +782,7 @@ class bulls_bot(object):
             else:
                 # submit new pre or post thread
                 self.logger.debug('submitting new pre or post thread (' + game_pre_post + ')')
-                game_thread_submission = self.reddit.get_subreddit(self.subreddit).submit(
+                game_thread_submission = self.reddit.subreddit(self.subreddit).submit(
                     text=game_thread_markup,
                     title=game_thread_title
                 )
@@ -807,12 +805,28 @@ class bulls_bot(object):
         self.logger.debug('generate_or_update_game_thread_if_necessary')
         if not self.is_today_a_game_day():
             if self.authenticate_reddit():
-                subreddit = self.reddit.get_subreddit(self.subreddit)
-                submission = subreddit.get_hot().next()
-                if submission.stickied and submission.link_flair_css_class in self.game_thread_flairs.values():
-                    # if submission is stickied with one of our game thread flairs, un-sticky it
-                    self.logger.info("unstickying last " + submission.link_flair_css_class)
-                    submission.unsticky()
+                subreddit = self.reddit.subreddit(self.subreddit)
+                topExists = True
+                botExists = True
+
+                try:
+                    topSticky = subreddit.sticky(1)
+                except:
+                    topExists = False
+                
+                try:
+                    botSticky = subreddit.sticky(2)
+                except:
+                    botExists = False
+                
+                if topExists and topSticky.link_flair_css_class in self.game_thread_flairs.values():
+                    # if submission is top stickied with one of our game thread flairs, un-sticky it
+                    self.logger.info("unstickying last " + submission.link_flair_css_class + " from top")
+                    topSticky.mod.undistinguish()
+                if botExists and topSticky.link_flair_css_class in self.game_thread_flairs.values():
+                    # if submission is bottom stickied with one of our game thread flairs, un-sticky it
+                    self.logger.info("unstickying last " + submission.link_flair_css_class + " from bottom")
+                    botSticky.mod.undistinguish()
 
         else:
             # if it is a game day, check to see if we need to create a game thread
@@ -822,8 +836,7 @@ class bulls_bot(object):
             need_to_create_game_thread = self.need_to_create_game_thread()
             need_to_update_game_thread = \
                 self.get_game_thread_links_for_date(datetime.now(self.bot_timezone), game_pre_post='game') is not None \
-                    and (game_is_live or self.game_day_info['current_status'] == 'LIVE'
-                         or self.game_day_info['current_status'] == 'LIVEOT')
+                    and (game_is_live or self.game_day_info['current_status'] == 'LIVE')
 
             variables = {}
             if need_to_create_postgame_thread \
@@ -1011,7 +1024,7 @@ class bulls_bot(object):
                                       + self.sidebar_standings_end_string \
                                       + after_standings_end
 
-            self.reddit.get_subreddit(self.subreddit).update_settings(
+            self.reddit.subreddit(self.subreddit).update_settings(
                 description=settings['description']
             )
             self.standings_sidebar_last_updated = datetime.now(self.bot_timezone)
@@ -1031,18 +1044,17 @@ def schedule_schedule_updates():
     while run_updates:
         try:
             # try:
-            bot.load_standings()                                  # update standings
             bot.generate_or_update_game_thread_if_necessary()     # update or create game threads if necessary
-            bot.update_standings_sidebar()                        # update standings in sidebar if necessary
             schedule = bot.generate_default_schedule()            # get schedule
+            # print(schedule)
             bot.update_schedule(schedule)                         # update schedule in sidebar
             update_freq = bot.get_current_update_freq()           # figure out when to update again
             consecutive_error_count = 0
-        except KeyboardInterrupt, e:
+        except KeyboardInterrupt as e:
             logging.error("keyboard interrupt. Stopping schedule updates")
             logging.exception(e)
             raise
-        except BaseException, e:
+        except BaseException as e:
             consecutive_error_count += 1
             logging.exception(e)
             logging.warning("an error occurred during schedule creation " + str(consecutive_error_count) +
@@ -1063,4 +1075,3 @@ if __name__ == "__main__":
     # print default_sched
     # bot.update_schedule(default_sched)
     schedule_schedule_updates()
-
