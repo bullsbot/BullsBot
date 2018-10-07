@@ -1,7 +1,8 @@
 import logging
 import time as time_
-import urllib2
-from bs4 import BeautifulSoup
+from urllib.request import urlopen
+import urllib.error
+import json
 import socket
 
 logger = logging.getLogger('NGS')
@@ -24,71 +25,63 @@ def get_games(date, time_till_stale=10800):
         cache_is_fresh = False
 
     if not cache_is_fresh:
-        games_html = fetch_nba_games_html(date)                     # fetch html from nba.com
-        games = parse_nba_games_html(games_html)                    # scrape for game info
+        games_json = fetch_nba_games_json(date)                     # fetch html from nba.com
+        games = parse_nba_games_json(games_json)                    # scrape for game info
         all_games_cache[date.strftime(date_format)] = games, time   # cache game info
     return games
 
 
-def fetch_html(url):
-    html = ''
+def fetch_json(url):
+    json_games = ''
     try:
-        html = urllib2.urlopen(url, timeout=2).read()
-    except urllib2.URLError, e:
+        with urlopen(url) as games_url:
+            json_games = json.loads(games_url.read().decode())
+    except urllib.error.HTTPError as e:
         if isinstance(e.reason, socket.timeout):
             # try once again
             logger.warning("timeout, trying again")
-            html = urllib2.urlopen(url, timeout=3).read()
+            with urlopen(url) as games_url:
+                json_games = json.loads(games_url.read().decode())
         else:
             logger.error(e)
             raise
-    except socket.timeout:
-        # For Python 2.7
-        logger.warning("timeout, trying again")
-        html = urllib2.urlopen(url, timeout=3).read()
-    return html
+    return json_games
 
 
-def fetch_nba_games_html(date):
+def fetch_nba_games_json(date):
         # todo: try-catch if more timeouts?
         date_format = "%Y%m%d"
-        scores_url = "http://www.nba.com/gameline/"
-        logger.info("Fetching " + scores_url + date.strftime(date_format))
-        return fetch_html(scores_url + date.strftime(date_format))
+        scores_url = "http://data.nba.com/prod/v2/" + date.strftime(date_format) + "/scoreboard.json"
+        logger.info("Fetching " + scores_url)
+        return fetch_json(scores_url)
 
 
-def parse_nba_games_html(games_html):
+def parse_nba_games_json(games_json):
         logger.debug("Begin Scrape")
-        soup = BeautifulSoup(games_html)
-        game_containers = soup.select('.GameLine')
+        game_containers = games_json["games"]
         # create dict
         games = {}
         for i, game_container in enumerate(game_containers):
             # logger.debug("Scraping game " + str(i))
             game = {}
-            # get container id
-            container_id = game_container['id']
             # find game status
-            status = game_container['class'][0].strip().upper()
-            game['current_status'] = game_container['class'][0].strip().upper()
-            if status == "LIVE" or status == "LIVEOT":
-                # show quarter and time if live
-                game['game_status'] = soup.select('#'+container_id + ' div[class$="Status"] [class="nbaLiveStatTxSm"]')[0].string.upper().replace('"', '')
-            elif status == "PRE":
-                # leave as PRE if pre, we can look for this later and replace with a localized time
-                game['game_status'] = status
-            else:
-                # otherwise, show the status we find
-                game['game_status'] = soup.select('#'+container_id + ' div[class$="Status"] [class$="StatTx"]')[0].string
+            if game_container['statusNum'] == 1:
+                game['current_status'] = 'PRE'
+                game['game_status'] = 'PRE'
+            elif game_container['statusNum'] == 2:
+                game['current_status'] = str(game_container['clock']) + ' ' + str(game_container['period']['current']) + 'Q'
+                game['game_status'] = str(game_container['clock']) + ' ' + str(game_container['period']['current']) + 'Q'
+            elif game_container['statusNum'] == 3:
+                game['current_status'] = 'FINAL'
+                game['game_status'] = 'FINAL'
             # find away team
-            game['away_team'] = soup.select('#'+container_id + ' div[class$="TeamAw"] [class$="TeamName"]')[0].string.upper()
+            game['away_team'] = game_container["vTeam"]["triCode"]
             # find home team
-            game['home_team'] = soup.select('#'+container_id + ' div[class$="TeamHm"] [class$="TeamName"]')[0].string.upper()
+            game['home_team'] = game_container["hTeam"]["triCode"]
             # find scores if they exist
-            away_score_containers = soup.select('#'+container_id + ' div[class$="TeamAw"] [class*="TeamNum"]')
-            if len(away_score_containers) > 0:
-                game['away_score'] = away_score_containers[0].string
-                game['home_score'] = soup.select('#'+container_id + ' div[class$="TeamHm"] [class*="TeamNum"]')[0].string
+            if not game_container['statusNum'] == 1:
+                game['home_score'] = game_container['hTeam']['score']
+                game['away_score'] = game_container['vTeam']['score']
             # add to list of games
             games[game['away_team'] + '_' + game['home_team']] = game
         logger.info("Scrape complete. {} games found.".format(len(games)))
