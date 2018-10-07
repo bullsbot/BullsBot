@@ -1,3 +1,7 @@
+from datetime import datetime
+import time
+import pytz
+
 """
 Settings for bullsbot. Note that this is a python file, so have at it! ... but if it's not python the bot won't load.
 Remember to use \n for new lines in your markdown.
@@ -10,6 +14,32 @@ reddit = dict(
 calendar = dict(
     no_date_flag="#NODATE",
     url="https://calendar.google.com/calendar/ical/rlj9ovepenpevlf0rrsgc359fc%40group.calendar.google.com/private-081c866936df070f14242923b4e1bbc3/basic.ics",
+)
+
+data = dict(
+    scoreboard_url="http://data.nba.com/json/cms/noseason/scoreboard/{date:%Y%m%d}/games.json",
+    games_tree="sports_content.games.game",
+
+    # these functions calculate a string given the game object. This output string gets added to the game object
+    add_to_game=dict(
+        game_datetime=lambda game: pytz.timezone('US/Eastern').localize(datetime.fromtimestamp(
+            time.mktime(time.strptime(game['home_start_date'] + game['home_start_time'], '%Y%m%d%H%M')))),
+        series_leader=lambda game: (
+            game["visitor.team_key"] + ' leads series ' + game['playoffs.visitor_wins'] + '-' + game['playoffs.home_wins']
+            if int(game['playoffs.visitor_wins']) > int(game['playoffs.home_wins'])
+            else
+            game["home.team_key"] + ' leads series ' + game['playoffs.home_wins'] + '-' + game['playoffs.visitor_wins']
+            if int(game['playoffs.visitor_wins']) < int(game['playoffs.home_wins'])
+            else 'Series tied at ' + game['playoffs.visitor_wins'] + '-' + game['playoffs.home_wins']
+        ),
+        period_time_str=lambda game: ("G{game[playoffs][game_number]} - " +
+                                      ("{dt:%d/%m}" if int(game['period_time.game_status']) == 0
+                                       else "{game[period_time][period_status]}"
+                                      if game['period_time.game_clock'] == ''
+                                      else "Q{game[period_time][period_value]} {game[period_time][game_clock]}")
+        ).format(game=game, dt=datetime.fromtimestamp(
+            time.mktime(time.strptime(game['home_start_date'] + game['home_start_time'], '%Y%m%d%H%M')))),
+    ),
 )
 
 team = dict(
@@ -39,6 +69,7 @@ bot = dict(
 )
 
 schedule = dict(
+    update_schedule=True,
     max_events_to_display=14,
     prior_events_to_display=3,
     min_events_to_display=10,
@@ -75,10 +106,12 @@ thread = dict(
     pre_game_date_fmt="%A***%b %d***%Y",
     current_game_thread_fmt="HOME TEAM|GAME THREAD|AWAY TEAM\n:--:|:--:|:--:\n[](#{home_team_short}){home_team_name}*{home_team_win_loss}*|**{home_score}-{away_score}** *VERSUS* *[BOX SCORE](http://www.nba.com/games/{link_date}/{away_team_short}{home_team_short}/gameinfo.html#nbaGIboxscore)*|[](#{away_team_short}){away_team_name}*{away_team_win_loss}*\n[](#empty)|*Eastern* **{game_time_eastern}**|[](#empty)\nSubreddit|*Central* **{game_time_central}**|Subreddit\n/r/{home_subreddit}|*Mountain* **{game_time_mountain}**|/r/{away_subreddit}\n[](#empty)|*Pacific* **{game_time_pacific}**|[](#empty)\n\n[](#empty)|INFORMATION|[](#empty)\n:--|:--|:--\n[](#empty)|*BROADCAST* {broadcast}|[](#empty)\n[](#empty)|*STREAMS* TBD|[](#empty)\n[](#empty)|*DISCUSS* [Reddit Steam](http://reddit-stream.com/)|[](#empty)\n",
     current_game_thread_split_text="[](#empty)|INFORMATION",
-    game_thread_title_fmt="GAME THREAD: {home_team_name} ({home_team_win_loss}) vs. {away_team_name} ({away_team_win_loss}) ({month_day_year})",
+    game_thread_title_fmt="GAME THREAD: {home_team_name} vs. {away_team_name}",
     game_thread_title_date_fmt="%b %d, %Y",
+    playoff_pre_game_thread_title_fmt="PRE GAME: {visitor.city} {visitor.nickname} vs. {home.city} {home.nickname} [{series_leader}]",
+    playoff_game_thread_title_fmt="PLAYOFFS GAME {playoffs.game_number}: {visitor.city} {visitor.nickname} vs. {home.city} {home.nickname} [{series_leader}]",
     game_thread_flairs=dict(
-        game='gamethread',
+        game='playoffs',
         pre='pregame',
         post='postgame'
     )
