@@ -1069,6 +1069,7 @@ def schedule_schedule_updates():
             # bot.generate_or_update_game_thread_if_necessary()     # update or create game threads if necessary
             # bot.update_standings_sidebar()                        # update standings in sidebar if necessary
             schedule = bot.generate_default_schedule()            # get schedule
+            print(schedule)
             bot.update_schedule(schedule)                         # update schedule in sidebar
             update_freq = bot.get_current_update_freq()           # figure out when to update again
             consecutive_error_count = 0
